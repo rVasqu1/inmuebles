@@ -1,17 +1,25 @@
-DATA: lt_vbrk TYPE TABLE OF vbrk,
-      lt_vbrp TYPE TABLE OF vbrp.
+TYPES: BEGIN OF ty_result,
+         vbeln TYPE vbrp-vbeln,
+         posnr TYPE vbrp-posnr,
+         fkdat TYPE vbrk-fkdat,
+         vkorg TYPE vbrk-vkorg,
+         matnr TYPE vbrp-matnr,
+         netwr TYPE vbrp-netwr,
+       END OF ty_result.
 
-SELECT *
-  FROM vbrk
-  INTO TABLE lt_vbrk
-  WHERE vkorg = 'Y051'
-    AND fkdat BETWEEN '20250101' AND '20250531'.
+DATA: lt_result TYPE TABLE OF ty_result,
+      ls_result TYPE ty_result.
 
-IF lt_vbrk IS NOT INITIAL.
-  SELECT *
-    FROM vbrp
-    INTO TABLE lt_vbrp
-    FOR ALL ENTRIES IN lt_vbrk
-    WHERE vbeln = lt_vbrk-vbeln
-      AND matnr IN ('MSDD123', 'MSD432', 'MSD768').
-ENDIF.
+SELECT a~vbeln,
+       b~posnr,
+       a~fkdat,
+       a~vkorg,
+       b~matnr,
+       b~netwr
+  FROM vbrk AS a
+  INNER JOIN vbrp AS b
+    ON a~vbeln = b~vbeln
+  INTO TABLE @lt_result
+  WHERE a~vkorg = 'Y051'
+    AND a~fkdat BETWEEN '20250101' AND '20250531'
+    AND b~matnr IN ('MSDD123', 'MSD432', 'MSD768').
