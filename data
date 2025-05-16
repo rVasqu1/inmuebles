@@ -1,0 +1,26 @@
+PERFORM bdc_dynpro      USING 'SAPMV60A' '1000'.
+PERFORM bdc_field       USING 'BDC_OKCODE' '/00'.
+PERFORM bdc_field       USING 'RV60A-VBELN' ''. "Número de documento vacío
+PERFORM bdc_field       USING 'S_VKORG-LOW' 'Y051'. "Organización de ventas
+PERFORM bdc_field       USING 'S_FKDAT-LOW' '01.01.2025'.
+PERFORM bdc_field       USING 'S_FKDAT-HIGH' '31.05.2025'.
+PERFORM bdc_field       USING 'S_MATNR-LOW' 'MSDD123'.
+PERFORM bdc_field       USING 'S_MATNR-HIGH' 'MSDD123'.
+APPEND ls_bdcdata TO lt_bdcdata.
+
+* Segundo material
+CLEAR ls_bdcdata.
+PERFORM bdc_field       USING 'S_MATNR-LOW' 'MSD432'.
+PERFORM bdc_field       USING 'S_MATNR-HIGH' 'MSD432'.
+APPEND ls_bdcdata TO lt_bdcdata.
+
+* Tercer material
+CLEAR ls_bdcdata.
+PERFORM bdc_field       USING 'S_MATNR-LOW' 'MSD768'.
+PERFORM bdc_field       USING 'S_MATNR-HIGH' 'MSD768'.
+APPEND ls_bdcdata TO lt_bdcdata.
+
+* Llamar la transacción VF05
+CALL TRANSACTION 'VF05' USING lt_bdcdata
+                       MODE 'E'        " Modo A: visible, N: background, E: error
+                       UPDATE 'S'.     " Sincronizado
