@@ -37,3 +37,5 @@ CALL FUNCTION 'LIST_TO_ASCI'
 LOOP AT lt_ascii INTO lv_line.
   WRITE: / lv_line.
 ENDLOOP.
+
+		FORMs cannot be defined in a class pool. For this reason, there are no PERFORM statements for internal FORMs.
