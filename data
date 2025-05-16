@@ -1,7 +1,17 @@
-SUBMIT rvfakt01
-  WITH vkorg   = 'Y051'                     " Organización de ventas
-  WITH fkdat-low = '20250101'              " Fecha desde
-  WITH fkdat-high = '20250531'             " Fecha hasta
-  WITH matnr-low = 'MSDD123'               " Material
-  WITH matnr-high = 'MSD768'               " Hasta el último
-  AND RETURN.
+DATA: lt_vbrk TYPE TABLE OF vbrk,
+      lt_vbrp TYPE TABLE OF vbrp.
+
+SELECT *
+  FROM vbrk
+  INTO TABLE lt_vbrk
+  WHERE vkorg = 'Y051'
+    AND fkdat BETWEEN '20250101' AND '20250531'.
+
+IF lt_vbrk IS NOT INITIAL.
+  SELECT *
+    FROM vbrp
+    INTO TABLE lt_vbrp
+    FOR ALL ENTRIES IN lt_vbrk
+    WHERE vbeln = lt_vbrk-vbeln
+      AND matnr IN ('MSDD123', 'MSD432', 'MSD768').
+ENDIF.
