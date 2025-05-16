@@ -1,4 +1,23 @@
-    CLEAR ls_bdc.
-    ls_bdc-fnam = iv_fnam.
-    ls_bdc-fval = iv_fval.
-    APPEND ls_bdc TO mt_bdcdata.
+DATA: mes      TYPE i VALUE 5,
+      fecha_inicio TYPE sy-datum,
+      fecha_fin    TYPE sy-datum,
+      fecha_aux    TYPE sy-datum.
+
+" Fecha inicial fija: 1 de enero de 2025
+fecha_inicio = '20250101'.
+
+" Construir fecha auxiliar al primer día del siguiente mes
+fecha_aux = |2025{ mes + 1 WIDTH = 2 PAD = '0' }01|.
+
+" Restar un día para obtener el último día del mes actual
+CALL FUNCTION 'HR_HK_DIFF_BT_2_DATES'
+  EXPORTING
+    date1 = fecha_aux
+    date2 = 1
+  IMPORTING
+    diff_in_days = DATA(dias_resta).
+
+fecha_fin = fecha_aux - dias_resta.
+
+WRITE: / 'Inicio:', fecha_inicio,
+       / 'Fin:   ', fecha_fin.
