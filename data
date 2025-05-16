@@ -1,41 +1,4 @@
-DATA: lt_bdcdata  TYPE TABLE OF bdcdata,
-      lt_list     TYPE TABLE OF abaplist,
-      lv_result   TYPE string.
-
-" Armar BDCDATA como ya sabes...
-" (omitido aquí para enfocarnos en la captura)
-
-CALL TRANSACTION 'VF05'
-  USING lt_bdcdata
-  MODE 'N'
-  UPDATE 'S'
-  EXPORTING
-    NO_AUTH_CHECK = 'X'
-    " Captura la salida en memoria
-  IMPORTING
-    LIST = lt_list.
-
-" Leer el contenido de la lista
-CALL FUNCTION 'LIST_FROM_MEMORY'
-  TABLES
-    listobject = lt_list
-  EXCEPTIONS
-    not_found  = 1
-    OTHERS     = 2.
-
-DATA: lt_ascii TYPE STANDARD TABLE OF abaplist,
-      lv_line  TYPE string.
-
-CALL FUNCTION 'LIST_TO_ASCI'
-  EXPORTING
-    list_index = -1
-  IMPORTING
-    listascii  = lt_ascii
-  EXCEPTIONS
-    OTHERS     = 1.
-
-LOOP AT lt_ascii INTO lv_line.
-  WRITE: / lv_line.
-ENDLOOP.
-
-		FORMs cannot be defined in a class pool. For this reason, there are no PERFORM statements for internal FORMs.
+    CLEAR ls_bdc.
+    ls_bdc-fnam = iv_fnam.
+    ls_bdc-fval = iv_fval.
+    APPEND ls_bdc TO mt_bdcdata.
