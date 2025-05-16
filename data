@@ -1,25 +1,30 @@
-TYPES: BEGIN OF ty_result,
-         vbeln TYPE vbrp-vbeln,
-         posnr TYPE vbrp-posnr,
-         fkdat TYPE vbrk-fkdat,
-         vkorg TYPE vbrk-vkorg,
-         matnr TYPE vbrp-matnr,
-         netwr TYPE vbrp-netwr,
-       END OF ty_result.
+DATA: lt_list   TYPE TABLE OF abaplist,
+      lv_text   TYPE string.
 
-DATA: lt_result TYPE TABLE OF ty_result,
-      ls_result TYPE ty_result.
+SUBMIT rfreisradocitem
+  WITH bukrs = '1000'
+  WITH s_budat IN ('20250101' TO '20250531')
+  WITH s_matnr IN ('MSDD123', 'MSD432', 'MSD768')
+  EXPORTING LIST TO MEMORY
+  AND RETURN.
 
-SELECT a~vbeln,
-       b~posnr,
-       a~fkdat,
-       a~vkorg,
-       b~matnr,
-       b~netwr
-  FROM vbrk AS a
-  INNER JOIN vbrp AS b
-    ON a~vbeln = b~vbeln
-  INTO TABLE @lt_result
-  WHERE a~vkorg = 'Y051'
-    AND a~fkdat BETWEEN '20250101' AND '20250531'
-    AND b~matnr IN ('MSDD123', 'MSD432', 'MSD768').
+CALL FUNCTION 'LIST_FROM_MEMORY'
+  TABLES
+    listobject = lt_list
+  EXCEPTIONS
+    not_found  = 1
+    OTHERS     = 2.
+
+IF sy-subrc = 0.
+  CALL FUNCTION 'LIST_TO_ASCI'
+    EXPORTING
+      list_index         = -1
+    IMPORTING
+      list_ascii         = lv_text
+    TABLES
+      listasci           = lt_list
+    EXCEPTIONS
+      others             = 1.
+
+  WRITE: / 'Contenido del reporte:', lv_text.
+ENDIF.
