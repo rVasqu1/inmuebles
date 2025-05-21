@@ -1,26 +1,17 @@
-SELECT b~bukrs,
-       b~belnr,
-       b~gjahr,
-       b~buzei,
-       b~hkont,
-       b~wrbtr,
-       b~dmbtr,
-       b~kostl,
-       b~sgtxt,
-       k~blart,
-       k~budat,
-       m~swenr,    "Número del inmueble
-       m~objnr     "Objeto referencia
-  FROM bseg AS b
-  INNER JOIN bkpf AS k
-    ON b~bukrs = k~bukrs AND
-       b~belnr = k~belnr AND
-       b~gjahr = k~gjahr
-  INNER JOIN vimimv AS m
-    ON m~bukrs = b~bukrs AND
-       m~anln1 = b~anln1 AND
-       m~anln2 = b~anln2
-  INTO TABLE @DATA(lt_resultado)
-  WHERE b~bukrs = 'Y051'
-    AND k~budat BETWEEN '20250101' AND '20250531'
-    AND m~swenr IS NOT NULL.
+@AbapCatalog.sqlViewName: 'ZCSTATUSVH'
+@ObjectModel.valueHelpDefinition: true
+define view ZC_StatusVH
+  as select from dummy
+{
+  key 'A' as StatusCode,
+      'Activo' as StatusText
+  from dummy
+
+  union all
+
+  select from dummy
+  {
+    key 'I' as StatusCode,
+        'Inactivo' as StatusText
+  }
+}
