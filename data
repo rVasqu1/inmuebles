@@ -1,17 +1,19 @@
-@AbapCatalog.sqlViewName: 'ZCSTATUSVH'
-@ObjectModel.valueHelpDefinition: true
-define view ZC_StatusVH
-  as select from dummy
-{
-  key 'A' as StatusCode,
-      'Activo' as StatusText
-  from dummy
+function parseFecha(fechaStr) {
+    // Primero validamos el formato yyyy.mm.dd
+    let match = fechaStr.match(/^(\d{4})\.(\d{2})\.(\d{2})$/);
+    if (match) {
+        const [_, year, month, day] = match;
+        const date = new Date(`${year}-${month}-${day}`);
+        return isValidDate(date) ? date : null;
+    }
 
-  union all
+    // Luego validamos el formato dd.mm.yyyy
+    match = fechaStr.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    if (match) {
+        const [_, day, month, year] = match;
+        const date = new Date(`${year}-${month}-${day}`);
+        return isValidDate(date) ? date : null;
+    }
 
-  select from dummy
-  {
-    key 'I' as StatusCode,
-        'Inactivo' as StatusText
-  }
+    return null; // No coincide con ninguno
 }
