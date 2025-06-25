@@ -24,3 +24,77 @@ LOOP AT lt_datos ASSIGNING FIELD-SYMBOL(<fs_dato>).
     <fs_dato>-nombre = 'Modificado'.
   ENDIF.
 ENDLOOP.
+
+
+sap.ui.define([
+  "sap/ui/core/mvc/Controller",
+  "sap/ui/core/format/NumberFormat"
+], function (Controller, NumberFormat) {
+  "use strict";
+
+  return Controller.extend("tuproyecto.controller.Main", {
+
+    onInit: function () {
+      // Inicializar modelo y formateadores
+      const oView = this.getView();
+      const oModel = new sap.ui.model.json.JSONModel({
+        porcentaje: 10.00 // Valor inicial: 10.00
+      });
+      oView.setModel(oModel);
+
+      // Obtener configuración regional del usuario
+      const oLocale = sap.ui.getCore().getConfiguration().getLocale();
+
+      // Formateador para mostrar porcentaje (ej: 10,00%)
+      this.oNumberFormatPercent = NumberFormat.getPercentInstance({
+        decimals: 2
+      }, oLocale);
+
+      // Formateador para parsear número decimal con coma o punto
+      this.oNumberFormatDecimal = NumberFormat.getFloatInstance({
+        decimals: 2
+      }, oLocale);
+    },
+
+    formatPorcentaje: function (fValue) {
+      if (fValue === undefined || fValue === null || isNaN(fValue)) {
+        return this.oNumberFormatPercent.format(0);
+      }
+
+      // El formateador espera valor entre 0 y 1 → dividir por 100
+      return this.oNumberFormatPercent.format(fValue / 100);
+    },
+
+    onLiveChangePorcentaje: function (oEvent) {
+      let sValue = oEvent.getParameter("value");
+
+      // Eliminar símbolo de porcentaje
+      sValue = sValue.replace("%", "").trim();
+
+      // Parsear con formato local (soporta coma o punto decimal)
+      let fValue = this.oNumberFormatDecimal.parse(sValue);
+
+      if (isNaN(fValue)) {
+        fValue = 0.00;
+      } else if (fValue < 0) {
+        fValue = 0.00;
+      } else if (fValue > 100) {
+        fValue = 100.00;
+      }
+
+      // Guardar valor real (ej: 10.00) en el modelo
+      oEvent.getSource().getModel().setProperty("/porcentaje", fValue);
+    }
+
+  });
+});
+
+<Input
+      id="inputPorcentaje"
+      width="120px"
+      value="{ path: '/porcentaje', formatter: '.formatPorcentaje' }"
+      liveChange=".onLiveChangePorcentaje"
+      textAlign="End"
+      placeholder="0,00%"
+      type="Text"
+    /
