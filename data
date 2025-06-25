@@ -17,3 +17,10 @@ function parseFecha(fechaStr) {
 
     return null; // No coincide con ninguno
 }
+
+
+LOOP AT lt_datos ASSIGNING FIELD-SYMBOL(<fs_dato>).
+  IF <fs_dato>-ceco = '9'.
+    <fs_dato>-nombre = 'Modificado'.
+  ENDIF.
+ENDLOOP.
