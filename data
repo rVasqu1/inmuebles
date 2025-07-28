@@ -1,100 +1,157 @@
-function parseFecha(fechaStr) {
-    // Primero validamos el formato yyyy.mm.dd
-    let match = fechaStr.match(/^(\d{4})\.(\d{2})\.(\d{2})$/);
-    if (match) {
-        const [_, year, month, day] = match;
-        const date = new Date(`${year}-${month}-${day}`);
-        return isValidDate(date) ? date : null;
-    }
+1. Introducción
+La presente documentación técnica describe una aplicación desarrollada con el framework SAPUI5, diseñada para integrarse con el entorno Fiori. La aplicación se basa en una arquitectura modular que sigue el patrón MVC (Modelo-Vista-Controlador), permitiendo una separación clara de responsabilidades, mantenibilidad y escalabilidad del código.
 
-    // Luego validamos el formato dd.mm.yyyy
-    match = fechaStr.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-    if (match) {
-        const [_, day, month, year] = match;
-        const date = new Date(`${year}-${month}-${day}`);
-        return isValidDate(date) ? date : null;
-    }
+2. Estructura General
+La estructura del proyecto está organizada siguiendo las buenas prácticas de SAPUI5. El núcleo de la aplicación reside en la carpeta webapp, que contiene:
 
-    return null; // No coincide con ninguno
-}
+Un archivo Component.js que inicializa y configura el componente principal.
 
+Un archivo de definición manifest.json, que centraliza la configuración declarativa (modelos, rutas, recursos).
 
-LOOP AT lt_datos ASSIGNING FIELD-SYMBOL(<fs_dato>).
-  IF <fs_dato>-ceco = '9'.
-    <fs_dato>-nombre = 'Modificado'.
-  ENDIF.
-ENDLOOP.
+Un conjunto de controladores para cada vista o flujo funcional.
 
+Fragmentos reutilizables de interfaz de usuario.
 
-sap.ui.define([
-  "sap/ui/core/mvc/Controller",
-  "sap/ui/core/format/NumberFormat"
-], function (Controller, NumberFormat) {
-  "use strict";
+Archivos de recursos (traducciones, estilos y librerías externas).
 
-  return Controller.extend("tuproyecto.controller.Main", {
+Un archivo HTML inicial (index.html) que sirve como punto de entrada.
 
-    onInit: function () {
-      // Inicializar modelo y formateadores
-      const oView = this.getView();
-      const oModel = new sap.ui.model.json.JSONModel({
-        porcentaje: 10.00 // Valor inicial: 10.00
-      });
-      oView.setModel(oModel);
+Además, se incluye una carpeta de pruebas (test/) que contiene scripts para realizar pruebas automáticas utilizando QUnit.
 
-      // Obtener configuración regional del usuario
-      const oLocale = sap.ui.getCore().getConfiguration().getLocale();
+3. Componente Principal
+El archivo Component.js actúa como el punto de entrada de la lógica SAPUI5. Su responsabilidad principal es inicializar el componente, cargar los modelos globales (como el modelo del dispositivo) y preparar el entorno para que la aplicación pueda ejecutarse en el contexto Fiori.
 
-      // Formateador para mostrar porcentaje (ej: 10,00%)
-      this.oNumberFormatPercent = NumberFormat.getPercentInstance({
-        decimals: 2
-      }, oLocale);
+4. Configuración mediante manifest.json
+El archivo manifest.json define de forma declarativa los parámetros esenciales de la aplicación:
 
-      // Formateador para parsear número decimal con coma o punto
-      this.oNumberFormatDecimal = NumberFormat.getFloatInstance({
-        decimals: 2
-      }, oLocale);
-    },
+Modelos: Se configura un modelo de internacionalización (i18n) para permitir traducción de textos, además de un modelo del dispositivo para adaptar la interfaz según el tipo de equipo (móvil, tablet, desktop).
 
-    formatPorcentaje: function (fValue) {
-      if (fValue === undefined || fValue === null || isNaN(fValue)) {
-        return this.oNumberFormatPercent.format(0);
-      }
+Enrutamiento: Se define el sistema de navegación interno de la aplicación, permitiendo la carga dinámica de vistas en función de rutas y patrones definidos.
 
-      // El formateador espera valor entre 0 y 1 → dividir por 100
-      return this.oNumberFormatPercent.format(fValue / 100);
-    },
+Recursos: Se especifican recursos utilizados, como bibliotecas adicionales, iconos, y configuración de temas.
 
-    onLiveChangePorcentaje: function (oEvent) {
-      let sValue = oEvent.getParameter("value");
+Este enfoque declarativo permite una mayor claridad en la configuración y evita la codificación explícita innecesaria.
 
-      // Eliminar símbolo de porcentaje
-      sValue = sValue.replace("%", "").trim();
+5. Controladores y Vistas
+La aplicación está compuesta por múltiples vistas y sus respectivos controladores, los cuales gestionan la lógica de negocio y eventos de la interfaz.
 
-      // Parsear con formato local (soporta coma o punto decimal)
-      let fValue = this.oNumberFormatDecimal.parse(sValue);
+5.1 Vista Principal
+La vista principal de la aplicación está asociada al controlador View1.controller.js, que contiene la lógica de inicialización, carga de datos, navegación y eventos de usuario. Es el punto central desde donde se accede al resto de las funcionalidades.
 
-      if (isNaN(fValue)) {
-        fValue = 0.00;
-      } else if (fValue < 0) {
-        fValue = 0.00;
-      } else if (fValue > 100) {
-        fValue = 100.00;
-      }
+5.2 Controladores Especializados
+Se incluyen varios controladores adicionales, cada uno vinculado a procesos específicos del negocio. Entre ellos:
 
-      // Guardar valor real (ej: 10.00) en el modelo
-      oEvent.getSource().getModel().setProperty("/porcentaje", fValue);
-    }
+cesvimapF1.controller.js
 
-  });
-});
+rectificacionBR.controller.js
 
-<Input
-      id="inputPorcentaje"
-      width="120px"
-      value="{ path: '/porcentaje', formatter: '.formatPorcentaje' }"
-      liveChange=".onLiveChangePorcentaje"
-      textAlign="End"
-      placeholder="0,00%"
-      type="Text"
-    /
+rectificacionImp.controller.js
+
+regularizacion.controller.js
+
+Estos controladores permiten encapsular la lógica asociada a diferentes flujos, como rectificaciones, regularizaciones o flujos funcionales internos. Esta segmentación mejora la legibilidad del código y facilita la colaboración entre equipos.
+
+6. Modelos
+La aplicación utiliza modelos SAPUI5 para representar datos de manera estructurada y vincularlos a la interfaz de usuario (data binding). Los modelos principales son:
+
+Modelo JSON: Utilizado para representar datos de aplicación, como resultados de consultas, estados temporales o listas seleccionables.
+
+Modelo del dispositivo: Permite adaptar la interfaz en función del tipo de equipo que accede a la aplicación (responsive design).
+
+Modelo de internacionalización: Gestiona los textos visibles en pantalla en distintos idiomas, promoviendo una experiencia multilingüe.
+
+7. Fragmentos y Reutilización
+Para evitar duplicación de código y facilitar la reutilización, la aplicación incorpora fragmentos XML reutilizables. Algunos ejemplos son:
+
+Fragmento para selección de elementos.
+
+Fragmento para ayudas de búsqueda (value help), como la del emisor.
+
+Estos fragmentos permiten construir interfaces modulares y coherentes en toda la aplicación.
+
+8. Recursos Estáticos y Personalización
+La aplicación incluye archivos adicionales como:
+
+Hojas de estilo personalizadas: Permiten modificar la apariencia de los elementos UI más allá del tema Fiori estándar.
+
+Librerías externas: Se incorpora una librería para manejo de archivos Excel, lo que indica capacidades de importación/exportación de datos.
+
+Traducciones: Un archivo i18n.properties contiene los textos multilingües utilizados en la aplicación.
+
+9. Pruebas Automáticas
+Se ha configurado un entorno básico de pruebas automatizadas utilizando QUnit, lo que permite validar funcionalidades críticas durante el desarrollo y mantenimiento de la aplicación.
+
+10. Conclusiones
+Esta aplicación SAPUI5 está desarrollada con una arquitectura sólida y coherente con los estándares Fiori. Las principales fortalezas de su diseño son:
+
+Uso adecuado del patrón MVC.
+
+Navegación dinámica mediante enrutamiento.
+
+Modularización clara de la lógica en controladores especializados.
+
+Reutilización de componentes mediante fragmentos.
+
+Internacionalización y adaptabilidad a distintos dispositivos.
+
+Soporte para pruebas automatizadas.
+
+Todo lo anterior contribuye a que la aplicación sea mantenible, extensible y apta para entornos empresariales complejos.
+
+11. Listado de Métodos por Controlador
+A continuación, se presenta un resumen funcional de los métodos implementados en cada controlador:
+
+App.controller.js
+onInit / onAfterRendering: Inicializan y renderizan el componente principal.
+
+onChangeMes / onChangeYear / onChangeProceso: Capturan cambios en filtros de selección.
+
+onContinuarDetalle / onCancelarApp: Controlan la navegación o cancelación.
+
+readDataRectificacion / readDataRectificacionBR: Cargan datos desde backend.
+
+groupBy / groupByWithoutBI: Agrupan resultados en listas.
+
+ajustarCeros: Ajusta valores numéricos con formato.
+
+armarMensajFront / mostrarMensajes: Manejan mensajes de error o éxito.
+
+press / itemSelect: Manejan eventos de selección y pulsación.
+
+View1.controller.js
+updateFinished / rowsUpdated: Controlan eventos post-renderizado.
+
+pintarLineaImporte: Aplica estilo visual a líneas con ciertos valores.
+
+onChangeImporte / onChangeFechaFactura: Detectan cambios en campos críticos.
+
+onGenerarPedido / onCancelar: Ejecutan acciones principales del flujo.
+
+downloadTable / createColumnConfig: Exportan tablas a Excel.
+
+onFileChange / parseFecha: Procesan archivos y fechas.
+
+infoError: Muestra errores informativos.
+
+cesvimapF1.controller.js
+addMonitor / addLine / duplicateMonitor / onDeleteMonitor: Gestionan líneas dinámicas en tablas.
+
+onChange...: Detectan cambios en campos como material, receptor, canal, etc.
+
+onRecuperarBIREGE: Llama a servicio externo o backend.
+
+validateFG / encontrarDuplicados: Realizan validaciones y detección de errores.
+
+eliminaDuplicados / ajustarCeros: Limpian datos ingresados.
+
+downloadTable / createColumnConfig: Generan archivos Excel.
+
+rectificaciónBR e Imp.controller.js
+formatMounth / rowsUpdated / pintarLineaImporte: Ajustan formato de fecha y validaciones visuales.
+
+onChangeImporte / onChangeFechaFactura / onChangeProcesar: Validan cambios.
+
+onGenerarPedido / onCancelar: Ejecutan acciones del flujo.
+
+regularizacion.controller.js
+Métodos similares a los anteriores con funciones específicas para importes, fechas, generación de pedidos, exportación de tablas y carga desde archivos.
