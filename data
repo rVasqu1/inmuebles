@@ -1,1 +1,17 @@
 
+<smartVariantManagement:SmartVariantManagement
+    id="variantManagement"
+    persistencyKey="MyCustomTableVariant"
+    showShare="true"
+    lifecycleSupport="true"
+    enableApplyAutomatically="true"
+    />
+
+
+// Obtener instancia del SmartVariantManagement
+            this.oVariantManagement = this.byId("variantManagement");
+
+            if (this.oVariantManagement) {
+                // Inicializar variantes con este controlador como proveedor
+                this.oVariantManagement.initialise(this);
+            }
