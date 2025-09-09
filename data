@@ -1,17 +1,15 @@
+managed implementation in class zbp_cmfi_rege_ubi unique;
+strict ( 1 );
 
-<smartVariantManagement:SmartVariantManagement
-    id="variantManagement"
-    persistencyKey="MyCustomTableVariant"
-    showShare="true"
-    lifecycleSupport="true"
-    enableApplyAutomatically="true"
-    />
+define behavior for ZCMFI_REGE_UBI //alias <alias_name>
+persistent table ZFI_REGE_UBIC
+lock master
+authorization master ( global )
+//etag master <field_name>
+{
+  create;
+  update;
+  delete;
+  field (readonly : update) zubicacion, zfechadesde;
 
-
-// Obtener instancia del SmartVariantManagement
-            this.oVariantManagement = this.byId("variantManagement");
-
-            if (this.oVariantManagement) {
-                // Inicializar variantes con este controlador como proveedor
-                this.oVariantManagement.initialise(this);
-            }
+}
