@@ -1,15 +1,6 @@
-managed implementation in class zbp_cmfi_rege_ubi unique;
-strict ( 1 );
+// 🔹 Espera a que se actualicen los datos filtrados
+    await new Promise(resolve => oTable.attachEventOnce("updateFinished", resolve));
 
-define behavior for ZCMFI_REGE_UBI //alias <alias_name>
-persistent table ZFI_REGE_UBIC
-lock master
-authorization master ( global )
-//etag master <field_name>
-{
-  create;
-  update;
-  delete;
-  field (readonly : update) zubicacion, zfechadesde;
-
-}
+    // 🔹 Obtén los datos visibles en la tabla
+    const aItems = oBinding.oList || oBinding.aIndices.map(i => oBinding.oList[i]);
+    const aData = aItems.map(oContext => oContext.getObject());
