@@ -1,6 +1,102 @@
-// 🔹 Espera a que se actualicen los datos filtrados
-    await new Promise(resolve => oTable.attachEventOnce("updateFinished", resolve));
+  METHOD update_RSNAEXP.
+    DATA:
+      lt_rsnamsa       TYPE zfi_t_rege_update_repartos,
+      lt_rsnamsa_aux   TYPE zfi_t_rege_update_repartos,
+      lv_temp_expenses TYPE zre_expenses_refact_perc,
+      lv_total_exp     TYPE zre_expenses_refact_perc.
+    "Se comprueba si son datos de 0004
+    LOOP AT mt_repartos INTO DATA(ls_mt_reparto).
+      IF ls_mt_reparto-society = gc_society_0004 AND ls_mt_reparto-expenses_refact > 0.
+        "Comprobamos si la sociedad existe en la T001
 
-    // 🔹 Obtén los datos visibles en la tabla
-    const aItems = oBinding.oList || oBinding.aIndices.map(i => oBinding.oList[i]);
-    const aData = aItems.map(oContext => oContext.getObject());
+        CALL FUNCTION 'FI_COMPANY_CODE_CHECK'
+          EXPORTING
+            i_bukrs      = CONV kokrs( ls_mt_reparto-refact_society )
+          EXCEPTIONS
+            company_code = 1
+            OTHERS       = 2.
+        IF sy-subrc <> 0.
+          mt_errors =
+            VALUE #( BASE mt_errors
+                     ( line  = ls_mt_reparto-line
+                       error =
+                         NEW zcx_re_update_repartos( textid = zcx_re_update_repartos=>society_not_found )->get_message( )-message ) ).
+        ENDIF.
+        APPEND INITIAL LINE TO lt_rsnaexp ASSIGNING FIELD-SYMBOL(<ls_rsnaexp>).
+        <ls_rsnaexp>-id = generate_uuid( ).
+        <ls_rsnaexp>-society = ls_mt_reparto-society.
+        <ls_rsnaexp>-end_period_date = ls_mt_reparto-end_period_date.
+        <ls_rsnaexp>-ini_period_date = ls_mt_reparto-ini_period_date.
+        <ls_rsnaexp>-service         = ls_mt_reparto-service.
+        <ls_rsnaexp>-cost_center     = ls_mt_reparto-cost_center.
+        <ls_rsnaexp>-refact_society  = ls_mt_reparto-refact_society.
+        <ls_rsnaexp>-status          = gc_active_status.
+        <ls_rsnaexp>-expenses_refact = ls_mt_reparto-expenses_refact.
+        <ls_rsnaexp>-execution_date = sy-datum.
+        <ls_rsnaexp>-execution_hour = sy-timlo.
+        <ls_rsnaexp>-userid = sy-uname.
+        IF ls_mt_reparto-refact_society <> gc_society_0004.
+          "Primero leemos El procentaje 0004 a 0004 que hayq ue repartir
+          READ TABLE mt_repartos INTO DATA(ls_mt_reparto_aux) WITH KEY cost_center = ls_mt_reparto-cost_center refact_society = gc_society_0004.
+          IF sy-subrc = 0.
+            lv_temp_expenses = ls_mt_reparto_aux-expenses_refact.
+          ELSE.
+            lv_temp_expenses = 0.
+          ENDIF.
+          "Se comprueba si es REGE
+          SELECT SINGLE * FROM zfi50 INTO @DATA(ls_zfi50) WHERE bukrs = @ls_mt_reparto-refact_society AND zfecha_sal > @sy-datum.
+          IF sy-subrc = 0.
+            "REGE
+            ls_mt_reparto-expenses_refact = ls_mt_reparto-expenses_refact / ( 1 - ( lv_temp_expenses / 100 ) ).
+            APPEND ls_mt_reparto TO lt_rsnamsa.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+    "Se comprueba si el conjunto del mismo ceco no supera el 100%
+    LOOP AT lt_rsnaexp INTO DATA(ls_rsnaexp) GROUP BY ( cost_center = ls_rsnaexp-cost_center ) INTO DATA(lv_group).
+      lv_total_exp = 0.
+      LOOP AT GROUP lv_group INTO DATA(ls_group).
+        lv_total_exp = lv_total_exp + ls_group-expenses_refact.
+      ENDLOOP.
+      IF lv_total_exp > 100.
+*        Centro de coste & tiene un porcentaje de reparto superior a 100%
+        mt_errors =
+             VALUE #( BASE mt_errors
+                      ( line  = ''
+                        error = NEW zcx_re_update_repartos( textid = zcx_re_update_repartos=>center_upper_100
+                                                            text1 = CONV #( lv_group ) )->get_message( )-message ) ) .
+      ENDIF.
+      IF lv_total_exp < 100.
+*        Centro de coste & tiene un porcentaje de reparto inferior a 100%
+        mt_errors =
+             VALUE #( BASE mt_errors
+                      ( line  = ''
+                        error = NEW zcx_re_update_repartos( textid = zcx_re_update_repartos=>center_lower_100
+                                                            text1 = CONV #( lv_group ) )->get_message( )-message ) ) .
+      ENDIF.
+    ENDLOOP.
+
+
+    "NO REGE
+    lt_rsnamsa_aux = lt_rsnamsa.
+    "se suma todos del mismo ceco y el restante es z_no_rege
+    LOOP AT lt_rsnamsa_aux INTO data(ls_rsnamsa) GROUP BY ( cost_center = ls_rsnamsa-cost_center ) INTO lv_group.
+      lv_total_exp = 0.
+      LOOP AT GROUP lv_group INTO data(ls_group_msa).
+        lv_total_exp = lv_total_exp + ls_group_msa-expenses_refact.
+      ENDLOOP.
+      MOVE-CORRESPONDING ls_group_msa TO ls_rsnamsa.
+      ls_rsnamsa-refact_society  =  gc_refact_society_no_rege.
+      ls_rsnamsa-expenses_refact = 100 - lv_total_exp.
+      APPEND ls_rsnamsa TO lt_rsnamsa.
+    ENDLOOP.
+
+    APPEND INITIAL LINE TO lt_rsnamsa ASSIGNING FIELD-SYMBOL(<ls_rsnamsa>).
+    MOVE-CORRESPONDING ls_mt_reparto TO <ls_rsnamsa>.
+    <ls_rsnamsa>-refact_society  =  gc_refact_society_no_rege.
+    <ls_rsnamsa>-cost_center  = ''.
+    <ls_rsnamsa>-expenses_refact = 100.
+
+    mt_repartos = lt_rsnamsa.
+ENDMETHOD.
