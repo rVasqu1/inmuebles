@@ -17,3 +17,6 @@ Genera registros complementarios con refact_society = gc_refact_society_no_rege.
 Registra errores en MT_ERRORS usando la clase ZCX_RE_UPDATE_REPARTOS.
 
 Sustituye MT_REPARTOS por los valores procesados de LT_RSNAMSА.
+
+
+https://sapqfipas.es.mapfre.net:8100/sap/bc/ui2/flp?sap-client=200&sap-language=ES#zmsd_rege_monit-edit
