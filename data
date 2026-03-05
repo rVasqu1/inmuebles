@@ -13,60 +13,61 @@ oFileUpload: function (oEvent) {
 
         var aExcel = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-        if (!aExcel.length) {
+        if (!aExcel || aExcel.length < 2) {
             sap.m.MessageToast.show("Excel vacío");
             return;
         }
 
         var aRows = aExcel.slice(1);
-        var aData = [];
+
+        var oModel = this.getView().getModel("mapfresa");
+        var aNaturaleza = [];
 
         for (var i = 0; i < aRows.length; i++) {
 
             var row = aRows[i];
             if (!row || row.length === 0) continue;
 
+            // Crear contexto OData (igual que SAP)
             var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
                 properties: {
                     Zsociedad: '0004'
                 }
             });
 
-            var obj = {
-                _numerico: i + 1,
-                _pathSmarfield: oContextNat.getPath()
+            var oRow = {
+                _pathSmarfield: oContextNat.getPath(),
+                _numerico: aNaturaleza.length + 1
             };
 
             // Naturaleza
-            if (row[0]) obj.ClassId = row[0];
+            if (row[0]) {
+                oRow.ClassId = row[0];
+            }
 
             // N Cuenta De
-            if (row[1]) obj.SaknrLow = row[1].toString();
+            if (row[1]) {
+                oRow.SaknrLow = row[1].toString();
+            }
 
             // N Cuenta A
-            if (row[2]) obj.SaknrHigh = row[2].toString();
+            if (row[2]) {
+                oRow.SaknrHigh = row[2].toString();
+            }
 
             // Desde
             if (row[3]) {
-                if (row[3] instanceof Date) {
-                    obj.DateLow = row[3];
-                } else {
-                    obj.DateLow = new Date(row[3]);
-                }
+                oRow.DateLow = row[3] instanceof Date ? row[3] : new Date(row[3]);
             }
 
             // Hasta
             if (row[4]) {
-                if (row[4] instanceof Date) {
-                    obj.DateHigh = row[4];
-                } else {
-                    obj.DateHigh = new Date(row[4]);
-                }
+                oRow.DateHigh = row[4] instanceof Date ? row[4] : new Date(row[4]);
             }
 
             // Fecha Registro
             if (row[5]) {
-                obj.ExecutionDate = row[5] instanceof Date ? row[5] : new Date(row[5]);
+                oRow.ExecutionDate = row[5] instanceof Date ? row[5] : new Date(row[5]);
             }
 
             // Hora Registro
@@ -81,27 +82,22 @@ oFileUpload: function (oEvent) {
                         parseInt(parts[1]) * 60 +
                         parseInt(parts[2])) * 1000;
 
-                    obj.ExecutionHour = { ms: ms };
-
+                    oRow.ExecutionHour = { ms: ms };
                 }
-
             }
 
             // Usuario
-            if (row[7]) obj.Userid = row[7];
+            if (row[7]) {
+                oRow.Userid = row[7];
+            }
 
-            aData.push(obj);
+            aNaturaleza.push(oRow);
         }
 
-        var oModel = this.getView().getModel("mapfresa");
-
-        oModel.setProperty("/naturaleza", []);
+        oModel.setProperty("/naturaleza", aNaturaleza);
         oModel.refresh(true);
 
-        oModel.setProperty("/naturaleza", aData);
-        oModel.refresh(true);
-
-        sap.m.MessageToast.show("Excel cargado");
+        sap.m.MessageToast.show("Excel cargado correctamente");
 
     }.bind(this);
 
