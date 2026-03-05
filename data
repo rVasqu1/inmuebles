@@ -1,25 +1,28 @@
-if (row[6]) {
-    var ms = null;
+else if (oCol.property === "ExecutionHour") {
 
-    if (typeof row[6] === "number") {
-        // Excel salva date+ore come numero decimale
-        var fractional = row[6] % 1; // prende solo la frazione per l'ora
-        ms = Math.round(fractional * 24 * 3600 * 1000);
-    } else if (row[6] instanceof Date) {
-        ms = (row[6].getHours() * 3600 + row[6].getMinutes() * 60 + row[6].getSeconds()) * 1000;
-    } else if (typeof row[6] === "string") {
-        var v = row[6].trim().toUpperCase();
-        var ampm = v.includes("AM") || v.includes("PM");
-        var parts = v.replace(/AM|PM/, "").split(":");
-        var h = parseInt(parts[0]) || 0;
-        var m = parseInt(parts[1]) || 0;
-        var s = parseInt(parts[2]) || 0;
-        if (ampm) {
-            if (v.includes("PM") && h < 12) h += 12;
-            if (v.includes("AM") && h === 12) h = 0;
-        }
-        ms = (h * 3600 + m * 60 + s) * 1000;
-    }
+                            if (vValue && typeof vValue === "object" && vValue.ms !== undefined) {
 
-    if (ms != null) obj.ExecutionHour = { ms: ms };
-}
+                                var totalSeconds = Math.floor(vValue.ms / 1000);
+
+                                var h = Math.floor(totalSeconds / 3600);
+                                var m = Math.floor((totalSeconds % 3600) / 60);
+                                var s = totalSeconds % 60;
+
+                                vValue =
+                                    h.toString().padStart(2, "0") + ":" +
+                                    m.toString().padStart(2, "0") + ":" +
+                                    s.toString().padStart(2, "0");
+                            }
+
+                            else if (typeof vValue === "string") {
+
+                                var matches = vValue.match(/PT(\d+)H(\d+)M(\d+)S/);
+
+                                if (matches) {
+                                    vValue =
+                                        matches[1].padStart(2, "0") + ":" +
+                                        matches[2].padStart(2, "0") + ":" +
+                                        matches[3].padStart(2, "0");
+                                }
+                            }
+                        }
