@@ -7,77 +7,177 @@ oFileUpload: function (oEvent) {
 
     reader.onload = function (e) {
 
-        var data = new Uint8Array(e.target.result);
-        var workbook = XLSX.read(data, { type: "array" });
-        var sheet = workbook.Sheets[workbook.SheetNames[0]];
+        try {
 
-        // leer excel
-        var rows = XLSX.utils.sheet_to_json(sheet);
+            var data = new Uint8Array(e.target.result);
+            var workbook = XLSX.read(data, { type: "array" });
+            var sheet = workbook.Sheets[workbook.SheetNames[0]];
 
-        if (!rows.length) {
-            sap.m.MessageToast.show("Excel vacío");
-            return;
-        }
+            var aExcel = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-        var oTable = this.byId("tableNaturaleza");
+            if (!aExcel.length) {
+                sap.m.MessageToast.show("El Excel está vacío");
+                return;
+            }
 
-        // obtener propiedades reales de la tabla
-        var aProperties = oTable.getColumns()
-            .map(function (oCol) {
-                return oCol.getSortProperty() || oCol.getFilterProperty();
-            })
-            .filter(Boolean);
+            var aHeaders = aExcel[0];
+            var aRows = aExcel.slice(1);
 
-        var aData = rows.map(function (row, index) {
+            var oTable = this.byId("tableNaturaleza");
+            var aColumns = oTable.getColumns();
 
-            var obj = {
-                _numerico: index + 1
-            };
+            // leer columnas de la tabla dinámicamente
+            var aColumnInfo = aColumns.map(function (oCol) {
 
-            aProperties.forEach(function (prop) {
+                var label = oCol.getLabel()?.getText()?.trim() || "";
 
-                var value = row[prop];
+                var template = oCol.getTemplate();
+                var property = "";
 
-                if (value === undefined) return;
+                if (template) {
 
-                // fecha
-                if (value instanceof Date) {
-                    obj[prop] = value;
+                    var binding =
+                        template.getBindingInfo("value") ||
+                        template.getBindingInfo("text") ||
+                        template.getBindingInfo("selectedKey");
+
+                    if (binding && binding.parts && binding.parts.length) {
+                        property = binding.parts[0].path;
+                    }
                 }
 
-                // hora HH:mm:ss
-                else if (typeof value === "string" && value.match(/^\d{2}:\d{2}:\d{2}$/)) {
+                return {
+                    label: label.toLowerCase(),
+                    property: property
+                };
 
-                    var parts = value.split(":");
+            });
 
-                    var ms =
-                        (parseInt(parts[0]) * 3600 +
-                        parseInt(parts[1]) * 60 +
-                        parseInt(parts[2])) * 1000;
+            // validar columnas
+            var columnMap = {};
+            var missingColumns = [];
 
-                    obj[prop] = { ms: ms };
-                }
+            aHeaders.forEach(function (excelHeader, i) {
 
-                else {
-                    obj[prop] = value;
+                if (!excelHeader) return;
+
+                var header = excelHeader.toString().trim().toLowerCase();
+
+                var match = aColumnInfo.find(function (col) {
+                    return col.label === header;
+                });
+
+                if (match) {
+                    columnMap[i] = match.property;
+                } else {
+                    missingColumns.push(excelHeader);
                 }
 
             });
 
-            return obj;
+            if (Object.keys(columnMap).length === 0) {
+                sap.m.MessageBox.error("Las columnas del Excel no coinciden con la tabla");
+                return;
+            }
 
-        });
+            var aData = [];
+            var errorRows = [];
 
-        var oModel = this.getView().getModel("mapfresa");
+            aRows.forEach(function (row, index) {
 
-        // reemplazar datos
-        oModel.setProperty("/naturaleza", []);
-        oModel.refresh(true);
+                // saltar filas completamente vacías
+                if (!row || row.every(v => v === undefined || v === "")) {
+                    return;
+                }
 
-        oModel.setProperty("/naturaleza", aData);
-        oModel.refresh(true);
+                var obj = {
+                    _numerico: aData.length + 1
+                };
 
-        sap.m.MessageToast.show("Excel cargado correctamente");
+                Object.keys(columnMap).forEach(function (excelIndex) {
+
+                    var property = columnMap[excelIndex];
+                    var value = row[excelIndex];
+
+                    if (value === undefined) return;
+
+                    try {
+
+                        // FECHA
+                        if (value instanceof Date) {
+                            obj[property] = value;
+                        }
+
+                        // HORA
+                        else if (typeof value === "string" && value.match(/^\d{2}:\d{2}:\d{2}$/)) {
+
+                            var parts = value.split(":");
+
+                            var ms =
+                                (parseInt(parts[0]) * 3600 +
+                                parseInt(parts[1]) * 60 +
+                                parseInt(parts[2])) * 1000;
+
+                            obj[property] = { ms: ms };
+
+                        }
+
+                        // NUMERO
+                        else if (typeof value === "number") {
+                            obj[property] = value;
+                        }
+
+                        // TEXTO
+                        else {
+                            obj[property] = value.toString().trim();
+                        }
+
+                    } catch (err) {
+                        errorRows.push(index + 2);
+                    }
+
+                });
+
+                aData.push(obj);
+
+            });
+
+            if (!aData.length) {
+                sap.m.MessageBox.error("No hay datos válidos en el Excel");
+                return;
+            }
+
+            var oModel = this.getView().getModel("mapfresa");
+
+            // limpiar tabla
+            oModel.setProperty("/naturaleza", []);
+            oModel.refresh(true);
+
+            // cargar datos
+            oModel.setProperty("/naturaleza", aData);
+            oModel.refresh(true);
+
+            if (errorRows.length) {
+
+                sap.m.MessageBox.warning(
+                    "Algunas filas tienen errores: " + errorRows.join(", ")
+                );
+
+            } else {
+
+                sap.m.MessageToast.show(
+                    "Excel importado correctamente (" + aData.length + " filas)"
+                );
+
+            }
+
+        } catch (err) {
+
+            sap.m.MessageBox.error("Error leyendo el Excel");
+
+            console.error(err);
+
+        }
 
     }.bind(this);
 
