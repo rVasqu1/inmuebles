@@ -1,61 +1,81 @@
-onDownloadExcel: function () {
-    var oTable = this.byId("tableNaturaleza");
-    var oBinding = oTable.getBinding("rows");
-
-    var aData = oBinding.getContexts().map(function(oContext) {
-        return oContext.getObject();
-    });
-
-    if (!aData || aData.length === 0) {
-        sap.m.MessageToast.show("No hay datos para exportar");
-        return;
-    }
-
-    // Crear columnas dinámicas usando sortProperty / filterProperty o label
-    var aColumns = oTable.getColumns().map(function(oColumn) {
-        var sLabel = oColumn.getLabel().getText();
-        var sProperty = oColumn.getSortProperty() || oColumn.getFilterProperty() || "";
-
-        return {
-            label: sLabel,
-            property: sProperty,
-            type: sap.ui.export.EdmType.String
-        };
-    });
-
-    // Formatear datos
-    var aFormattedData = aData.map(function(oItem) {
-        var oRow = {};
-        aColumns.forEach(function(oCol) {
-            var vValue = oItem[oCol.property];
-
-            // Si el valor es Date, formatear correctamente
-            if (vValue instanceof Date) {
-                if (vValue.getHours() || vValue.getMinutes() || vValue.getSeconds()) {
-                    vValue = vValue.toLocaleDateString() + " " +
-                             vValue.getHours().toString().padStart(2,"0") + ":" +
-                             vValue.getMinutes().toString().padStart(2,"0") + ":" +
-                             vValue.getSeconds().toString().padStart(2,"0");
-                } else {
-                    vValue = vValue.toLocaleDateString();
-                }
-            }
-
-            oRow[oCol.property] = vValue != null ? vValue : "";
-        });
-        return oRow;
-    });
-
-    // Exportar Excel
-    var oSettings = {
-        workbook: { columns: aColumns },
-        dataSource: aFormattedData,
-        fileName: "Export_Tabla.xlsx",
-        worker: false
-    };
-
-    var oSheet = new sap.ui.export.Spreadsheet(oSettings);
-    oSheet.build().finally(function() {
-        oSheet.destroy();
-    });
-}
+	<t:Column 
+						autoResizable="true"
+						filterProperty = "SaknrLow"
+						sortProperty = "SaknrLow"
+						width="8rem">
+						<Label text="{i18n>nCuentaDe}" required="true" />
+						<t:template>
+                            <smartField:SmartField id="nCuentaDe" fieldGroupIds="fg1" entitySet="ZCMSD_FACT_FEES"  fixedValueListValidationEnabled="true"  value="{SaknrLow}" change="onChangeCuentaDe"/>
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						filterProperty = "SaknrHigh"
+						sortProperty = "SaknrHigh"
+						width="10rem">
+						<Label text="{i18n>nCuentaA}" />
+						<t:template>
+							<smartField:SmartField id="nCuentaA" entitySet="ZCMSD_FACT_FEES"  fixedValueListValidationEnabled="true"  value="{SaknrHigh}" change="onChangeCuentaA"/>
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						filterProperty = "DateLow"
+						sortProperty = "DateLow"
+						width="9rem">
+						<Label text="{i18n>desde}" required="true" />
+						<t:template>
+							<DatePicker dateValue="{path:'mapfresa>DateLow'}" 
+									displayFormat="dd/MM/yyyy"
+									 fieldGroupIds="fgDate" change="onChangeDate" />
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						filterProperty = "DateHigh"
+						sortProperty = "DateHigh"
+						width="9rem">
+						<Label text="{i18n>hasta}" required="true" />
+						<t:template>
+							<DatePicker dateValue="{path:'mapfresa>DateHigh'}" 
+									displayFormat="dd/MM/yyyy"
+									 fieldGroupIds="fgDate" change="onChangeDate" />
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						filterProperty = "ExecutionDate"
+						sortProperty = "ExecutionDate"
+						width="9rem">
+						<Label text="{i18n>fechaRegistro}" />
+						<t:template>
+							<Text text="{path:'mapfresa>ExecutionDate', type:'sap.ui.model.type.Date', formatOptions:{
+								pattern:'dd/MM/yyyy'
+							}}" 
+									textAlign="End"  />
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						filterProperty = "ExecutionHour"
+						sortProperty = "ExecutionHour"
+						width="9rem">
+						<Label text="{i18n>horaRegistro}" />
+						<t:template>
+							<Text text="{path:'mapfresa>ExecutionHour', type:'sap.ui.model.odata.type.Time'}" 
+									textAlign="End" />
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						filterProperty = "Userid"
+						sortProperty = "Userid"
+						width="9rem">
+						<Label text="{i18n>usuarioRegistro}" />
+						<t:template>
+							<Text text="{path:'mapfresa>Userid'}" 
+									textAlign="End" />
+						</t:template>
+					</t:Column>
+				</t:columns>				
+			</t:Table>
