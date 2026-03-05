@@ -1,31 +1,7 @@
-oFileUpload: function (oEvent) {
+onFileUpload: function (oEvent) {
 
-    var oFile = oEvent.getParameter("files")[0];
-    if (!oFile) return;
-
-    var oTable = this.byId("tableNaturaleza");
-
-    // ricostruire colonne come nell'export
-    var aColumns = [];
-
-    oTable.getColumns().forEach(function (oColumn) {
-
-        var oLabel = oColumn.getLabel();
-        var sLabel = oLabel ? oLabel.getText() : "";
-
-        var sProperty =
-            oColumn.getSortProperty() ||
-            oColumn.getFilterProperty() ||
-            "";
-
-        if (!sProperty) return;
-
-        aColumns.push({
-            label: sLabel,
-            property: sProperty
-        });
-
-    });
+    var file = oEvent.getParameter("files")[0];
+    if (!file) return;
 
     var reader = new FileReader();
 
@@ -35,34 +11,17 @@ oFileUpload: function (oEvent) {
         var workbook = XLSX.read(data, { type: "array" });
 
         var sheet = workbook.Sheets[workbook.SheetNames[0]];
-        var rows = XLSX.utils.sheet_to_json(sheet);
 
-        var aData = rows.map(function (excelRow, index) {
+        var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-            var oRow = {};
-
-            aColumns.forEach(function (col) {
-
-                var vValue = excelRow[col.label];
-
-                if (col.property === "_numerico") {
-                    vValue = index + 1;
-                }
-
-                oRow[col.property] = vValue;
-
-            });
-
-            return oRow;
-
+        var oModel = new sap.ui.model.json.JSONModel({
+            rows: rows
         });
 
-        var oModel = this.getView().getModel("mapfresa");
-
-        oModel.setProperty("/naturaleza", aData);
-        oModel.refresh(true);
+        this.getView().setModel(oModel, "excel");
 
     }.bind(this);
 
-    reader.readAsArrayBuffer(oFile);
+    reader.readAsArrayBuffer(file);
+
 }
