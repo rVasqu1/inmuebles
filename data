@@ -1,133 +1,193 @@
-  <IconTabFilter text="{i18n>naturaleza}" key="naturaleza">
-				<t:Table id="tableNaturaleza"	
-						rows="{mapfresa>/naturaleza}" 
-						selectionMode="Multi"
-						visibleRowCountMode="Auto"
-						threshold="15"
-						scrollThreshold="50"
-						enableBusyIndicator="true"
-                        rowsUpdated="rowsUpdated">
-					<t:extension>
-					<OverflowToolbar style="Clear">						
-						<ToolbarSpacer/>
-						<!--  INI RJVS 04/03/2025 botones upload y download -->
-							<unified:FileUploader id="fileUploader" buttonOnly="true" change="oFileUpload" uploadUrl="/dummy" fileType="xlsx" />
-							<Button
-							press= "onDownloadExcel"
-							icon="sap-icon://download"
-							/>
-						<!--  FIN RJVS 04/03/2025 botones upload y download -->
-						<Button
-							icon="sap-icon://add"
-							press="onAddRowNat" visible="{=${aux>/procesado} ? false : true}"/>
-                        <Button
-							icon="sap-icon://copy"
-							press="onCopyRowNat" visible="{=${aux>/procesado}? false : true}"/>
-							<Button
-							icon="sap-icon://delete"
-							press="onDeleteRowNat" visible="{=${aux>/procesado}? false : true}"/>
-					</OverflowToolbar>
-				</t:extension>
-				<t:columns>
-				<t:Column
-						autoResizable="true"
-						width="4rem">
-						<Label text="" />
-						<t:template>
-                            <Text text="{mapfresa>_numerico}"/>
-						</t:template>
-					</t:Column>
-					<t:Column
-						autoResizable="true"
-						filterProperty = "ClassId"
-						sortProperty = "ClassId"
-						width="12rem">
-						<Label text="{i18n>naturaleza}" required="true" />
-						<t:template>
-                            <Select width="100%" forceSelection="false" fieldGroupIds="fgTipologia" enabled="{= ${mapfresa>Id} ? false : true}" selectedKey="{mapfresa>ClassId}" items="{mapfresa>/tipoNat}" change="onChangeClass">
-                                <core:Item key="{mapfresa>Id}" text="{= ${mapfresa>Orden} + ': ' + (${aux>/currentL} === 'es-ES' ? ${mapfresa>Description} : ${mapfresa>DescriptionEng}) }"/>
-                            </Select>
-						</t:template>
-					</t:Column>
-					<t:Column 
-						autoResizable="true"
-						filterProperty = "SaknrLow"
-						sortProperty = "SaknrLow"
-						width="8rem">
-						<Label text="{i18n>nCuentaDe}" required="true" />
-						<t:template>
-                            <smartField:SmartField id="nCuentaDe" fieldGroupIds="fg1" entitySet="ZCMSD_FACT_FEES"  fixedValueListValidationEnabled="true"  value="{SaknrLow}" change="onChangeCuentaDe"/>
-						</t:template>
-					</t:Column>
-					<t:Column
-						autoResizable="true"
-						filterProperty = "SaknrHigh"
-						sortProperty = "SaknrHigh"
-						width="10rem">
-						<Label text="{i18n>nCuentaA}" />
-						<t:template>
-							<smartField:SmartField id="nCuentaA" entitySet="ZCMSD_FACT_FEES"  fixedValueListValidationEnabled="true"  value="{SaknrHigh}" change="onChangeCuentaA"/>
-						</t:template>
-					</t:Column>
-					<t:Column
-						autoResizable="true"
-						filterProperty = "DateLow"
-						sortProperty = "DateLow"
-						width="9rem">
-						<Label text="{i18n>desde}" required="true" />
-						<t:template>
-							<DatePicker dateValue="{path:'mapfresa>DateLow'}" 
-									displayFormat="dd/MM/yyyy"
-									 fieldGroupIds="fgDate" change="onChangeDate" />
-						</t:template>
-					</t:Column>
-					<t:Column
-						autoResizable="true"
-						filterProperty = "DateHigh"
-						sortProperty = "DateHigh"
-						width="9rem">
-						<Label text="{i18n>hasta}" required="true" />
-						<t:template>
-							<DatePicker dateValue="{path:'mapfresa>DateHigh'}" 
-									displayFormat="dd/MM/yyyy"
-									 fieldGroupIds="fgDate" change="onChangeDate" />
-						</t:template>
-					</t:Column>
-					<t:Column
-						autoResizable="true"
-						filterProperty = "ExecutionDate"
-						sortProperty = "ExecutionDate"
-						width="9rem">
-						<Label text="{i18n>fechaRegistro}" />
-						<t:template>
-							<Text text="{path:'mapfresa>ExecutionDate', type:'sap.ui.model.type.Date', formatOptions:{
-								pattern:'dd/MM/yyyy'
-							}}" 
-									textAlign="End"  />
-						</t:template>
-					</t:Column>
-					<t:Column
-						autoResizable="true"
-						filterProperty = "ExecutionHour"
-						sortProperty = "ExecutionHour"
-						width="9rem">
-						<Label text="{i18n>horaRegistro}" />
-						<t:template>
-							<Text text="{path:'mapfresa>ExecutionHour', type:'sap.ui.model.odata.type.Time'}" 
-									textAlign="End" />
-						</t:template>
-					</t:Column>
-					<t:Column
-						autoResizable="true"
-						filterProperty = "Userid"
-						sortProperty = "Userid"
-						width="9rem">
-						<Label text="{i18n>usuarioRegistro}" />
-						<t:template>
-							<Text text="{path:'mapfresa>Userid'}" 
-									textAlign="End" />
-						</t:template>
-					</t:Column>
-				</t:columns>				
-			</t:Table>
-			</IconTabFilter>
+  onCopyRowCeco: function (oEvent) {
+                var tableCeco = this.getView().byId("tableCeco");
+                var aIndex = tableCeco.getSelectedIndices();
+                var obj = this.getView().getModel("mapfresa").getData().ceco;
+                for (var i in aIndex) {
+                    var oContextCeco = this.getView().getModel().createEntry("/ZCMSD_FACT_CECO", {
+                        properties: {
+                            Zsociedad: '0004',
+                            CostCenter: obj[aIndex[i]].CostCenter
+                        }
+                    })
+
+                    // Fila vacía 
+                    var oNewRow = jQuery.extend({}, obj[aIndex[i]]);
+                    oNewRow._pathSmarfield = oContextCeco.getPath();
+                    oNewRow.Id = undefined;
+                    oNewRow.ExecutionDate = undefined;
+                    oNewRow.ExecutionHour = undefined;
+                    oNewRow.Userid = undefined;
+                    obj.push(oNewRow);
+                    oNewRow._numerico = obj.length;
+                }
+                this.getView().getModel("mapfresa").refresh();
+
+            },
+            onDeleteRowCeco: function () {
+                var oView = this.getView();
+                var tableCeco = oView.byId("tableCeco");
+                var aIndex = tableCeco.getSelectedIndices();
+                var oModel = oView.getModel("mapfresa");
+                var obj = oModel.getData().ceco;
+                var _deleteCeco = oModel.getData()._deleteCeco;
+                var aCeco = [];
+                for (var i in obj) {
+                    if (aIndex.filter((index) => index == i).length > 0) {
+                        if (obj[i].Id) {
+                            _deleteCeco.push(obj[i]);
+                        }
+                    } else {
+                        aCeco.push(obj[i]);
+                    }
+                }
+                this.getView().getModel("mapfresa").setProperty("/ceco", aCeco);
+
+            },
+            onChangeCeCo: function (oEvent) {
+                var objectContext = oEvent.getSource().getBindingContext("mapfresa").getObject();
+                objectContext.CostCenter = oEvent.getParameter("value");
+                oEvent.getSource().setValueState("None");
+            },
+            onAddRowNat: function () {
+                var oModel = this.getView().getModel("mapfresa");
+                var aRows = oModel.getProperty("/naturaleza");
+
+                var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
+                    properties: {
+                        Zsociedad: '0004'
+                    }
+                })
+
+                // Fila vacía 
+                var oNewRow = {
+                    _pathSmarfield: oContextNat.getPath()
+                };
+
+                aRows.push(oNewRow);
+                oNewRow._numerico = aRows.length;
+                oModel.setProperty("/naturaleza", aRows);
+            },
+            onCopyRowNat: function (oEvent) {
+                var tableNaturaleza = this.getView().byId("tableNaturaleza");
+                var aIndex = tableNaturaleza.getSelectedIndices();
+                var obj = this.getView().getModel("mapfresa").getData().naturaleza;
+                for (var i in aIndex) {
+                    var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
+                        properties: {
+                            Zsociedad: '0004',
+                            SaknrLow: obj[aIndex[i]].SaknrLow,
+                            SaknrHigh: obj[aIndex[i]].SaknrHigh
+                        }
+                    })
+
+                    // Fila vacía 
+                    var oNewRow = jQuery.extend({}, obj[aIndex[i]]);
+                    oNewRow._pathSmarfield = oContextNat.getPath();
+                    oNewRow.Id = undefined;
+                    oNewRow.ExecutionDate = undefined;
+                    oNewRow.ExecutionHour = undefined;
+                    oNewRow.Userid = undefined;
+                    obj.push(oNewRow);
+                    oNewRow._numerico = obj.length;
+                }
+                this.getView().getModel("mapfresa").refresh();
+
+            },
+            onDeleteRowNat: function () {
+                var oView = this.getView();
+                var tableNaturaleza = oView.byId("tableNaturaleza");
+                var aIndex = tableNaturaleza.getSelectedIndices();
+                var oModel = oView.getModel("mapfresa");
+                var obj = oModel.getData().naturaleza;
+                var aNaturaleza = [];
+                for (var i in obj) {
+                    if (aIndex.filter((index) => index == i).length == 0) {
+                        aNaturaleza.push(obj[i]);
+                    };
+                }
+                var _deleteNaturaleza = oModel.getData()._deleteNaturaleza;
+                var aNat = [];
+                for (var i in obj) {
+                    if (aIndex.filter((index) => index == i).length > 0) {
+                        if (obj[i].Id) {
+                            _deleteNaturaleza.push(obj[i]);
+                        }
+                    } else {
+                        aNat.push(obj[i]);
+                    }
+                }
+                oModel.setProperty("/naturaleza", aNat);
+            },
+            onChangeCuentaA: function (oEvent) {
+                var objectContext = oEvent.getSource().getBindingContext("mapfresa").getObject();
+                objectContext.SaknrHigh = oEvent.getParameter("value");
+            },
+            onChangeCuentaDe: function (oEvent) {
+                var objectContext = oEvent.getSource().getBindingContext("mapfresa").getObject();
+                objectContext.SaknrLow = oEvent.getParameter("value");
+            },
+            rowsUpdated: function (oEvent) {
+                var rows = oEvent.getSource().getRows();
+                for (var i in rows) {
+                    //Por cada fila debes settear el binding que se haya creado un binding para el smartfield
+                    if (rows[i].getBindingContext("mapfresa")) {
+                        var objectContext = rows[i].getBindingContext("mapfresa").getObject()
+                        rows[i].bindElement(objectContext._pathSmarfield);
+                    }
+                }
+            },
+            onAddRowTCeco: function () {
+                var oModel = this.getView().getModel("mapfresa");
+                var aRows = oModel.getProperty("/tipoCeco");
+                // Fila vacía 
+                var oNewRow = {
+                    Id: this.lastIdTCeco,
+                    Deleted: ''
+                };
+                this.lastIdTCeco = this.lastIdTCeco + 1;
+
+                aRows.push(oNewRow);
+                oNewRow._numerico = aRows.length;
+                oModel.setProperty("/tipoCeco", aRows);
+            },
+            onCopyRowTCeco: function (oEvent) {
+                var tableTipoCeco = this.getView().byId("tableTipoCeco");
+                var aIndex = tableTipoCeco.getSelectedIndices();
+                var obj = this.getView().getModel("mapfresa").getData().tipoCeco;
+                for (var i in aIndex) {
+
+                    // Fila vacía 
+                    var oNewRow = jQuery.extend({}, obj[aIndex[i]]);
+                    oNewRow.Id = undefined;
+                    oNewRow.Orden = "";
+                    oNewRow.ExecutionDate = undefined;
+                    oNewRow.ExecutionHour = undefined;
+                    oNewRow.Userid = undefined;
+                    obj.push(oNewRow);
+                    oNewRow._numerico = obj.length;
+                }
+                this.getView().getModel("mapfresa").refresh();
+
+            },
+            onDeleteRowTCeco: function () {
+                var oView = this.getView();
+                var tableTipoCeco = oView.byId("tableTipoCeco");
+                var aIndex = tableTipoCeco.getSelectedIndices();
+                var oModel = this.getView().getModel("mapfresa");
+                var obj = oModel.getData().tipoCeco;
+                var _deleteTipoCeco = oModel.getData()._deleteTipoCeco;
+                var aTCeco = [];
+
+                for (var i in obj) {
+                    if (aIndex.filter((index) => index == i).length > 0) {
+                        //Se comprueba si no hay algun ceco que este consumiendolo
+                        var cecos = oModel.getData().ceco;
+                        var found = false;
+                        for (var j in cecos) {
+                            if (cecos[j].TypeId === obj[i].Id) {
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (found) {
+                            aTCeco.push(obj
