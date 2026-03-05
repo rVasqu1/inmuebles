@@ -1,121 +1,56 @@
-oFileUpload: function (oEvent) {
-
-    var oFile = oEvent.getParameter("files")[0];
-    if (!oFile) {
-        sap.m.MessageToast.show("Seleccione un Excel");
-        return;
-    }
-
-    var reader = new FileReader();
-
-    reader.onload = function (e) {
-
-        var data = new Uint8Array(e.target.result);
-        var workbook = XLSX.read(data, { type: "array" });
-        var sheet = workbook.Sheets[workbook.SheetNames[0]];
-
-        // leer excel como matriz
-        var aExcel = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
-        if (!aExcel || aExcel.length < 2) {
-            sap.m.MessageToast.show("Excel vacío");
-            return;
-        }
-
-        var aRows = aExcel.slice(1);
-        var aData = [];
-
-        for (var i = 0; i < aRows.length; i++) {
-
-            var row = aRows[i];
-
-            if (!row || row.length === 0) continue;
-
-            var oRow = {};
-
-            // numerico
-            oRow._numerico = i + 1;
-
-            // NATURALEZA
-            oRow.ClassId = row[0] ? row[0].toString() : "";
-
-            // CUENTA DE
-            oRow.SaknrLow = row[1] ? row[1].toString() : "";
-
-            // CUENTA A
-            oRow.SaknrHigh = row[2] ? row[2].toString() : "";
-
-            // FECHA DESDE
-            if (row[3] instanceof Date) {
-                oRow.DateLow = row[3];
-            }
-
-            // FECHA HASTA
-            if (row[4] instanceof Date) {
-                oRow.DateHigh = row[4];
-            }
-
-            // FECHA REGISTRO
-            if (row[5] instanceof Date) {
-                oRow.ExecutionDate = row[5];
-            }
-
-            // HORA REGISTRO
-            if (row[6]) {
-
-                var parts = row[6].toString().split(":");
-
-                if (parts.length === 3) {
-
-                    var ms =
-                        (parseInt(parts[0]) * 3600 +
-                        parseInt(parts[1]) * 60 +
-                        parseInt(parts[2])) * 1000;
-
-                    oRow.ExecutionHour = { ms: ms };
-                }
-            }
-
-            // USUARIO
-            oRow.Userid = row[7] ? row[7].toString() : "";
-
-            // VALIDACIÓN mínima
-            if (!oRow.ClassId || !oRow.SaknrLow) {
-
-                sap.m.MessageBox.error(
-                    "Error en fila " + (i + 2) +
-                    ". Naturaleza o Cuenta De vacíos"
-                );
-
-                return;
-            }
-
-            // crear contexto SmartField
-            var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
-                properties: {
-                    Zsociedad: "0004",
-                    SaknrLow: oRow.SaknrLow,
-                    SaknrHigh: oRow.SaknrHigh
-                }
-            });
-
-            oRow._pathSmarfield = oContextNat.getPath();
-
-            aData.push(oRow);
-        }
-
-        var oModel = this.getView().getModel("mapfresa");
-
-        // reemplazar datos completamente
-        oModel.setProperty("/naturaleza", []);
-        oModel.refresh(true);
-
-        oModel.setProperty("/naturaleza", aData);
-        oModel.refresh(true);
-
-        sap.m.MessageToast.show("Excel cargado correctamente");
-
-    }.bind(this);
-
-    reader.readAsArrayBuffer(oFile);
-}
+Exportación SAPUI5
+: 
+!autofilter
+: 
+{ref: 'A1:I3'}
+!margins
+: 
+{left: 0.75, right: 0.75, top: 1, bottom: 1, header: 0.5, …}
+!ref
+: 
+"A1:I3"
+A1
+: 
+{t: 's', v: '_numerico', r: '<t>_numerico</t>', h: '_numerico', w: '_numerico'}
+A2
+: 
+{t: 's', v: '1', r: '<t>1</t>', h: '1', w: '1'}
+A3
+: 
+{t: 's', v: '2', r: '<t>2</t>', h: '2', w: '2'}
+B1
+: 
+{t: 's', v: 'Cuentas contables Fees', r: '<t>Cuentas contables Fees</t>', h: 'Cuentas contables Fees', w: 'Cuentas contables Fees'}
+C1
+: 
+{t: 's', v: 'Nº cuenta De', r: '<t>Nº cuenta De</t>', h: 'Nº cuenta De', w: 'Nº cuenta De'}
+D1
+: 
+{t: 's', v: 'Nº cuenta A', r: '<t>Nº cuenta A</t>', h: 'Nº cuenta A', w: 'Nº cuenta A'}
+E1
+: 
+{t: 's', v: 'Desde', r: '<t>Desde</t>', h: 'Desde', w: 'Desde'}
+F1
+: 
+{t: 's', v: 'Hasta', r: '<t>Hasta</t>', h: 'Hasta', w: 'Hasta'}
+G1
+: 
+{t: 's', v: 'Fecha Registro', r: '<t>Fecha Registro</t>', h: 'Fecha Registro', w: 'Fecha Registro'}
+G2
+: 
+{t: 's', v: 'Thu Jul 17 2025 02:00:00 GMT+0200 (hora de verano de Europa central)', r: '<t>Thu Jul 17 2025 02:00:00 GMT+0200 (hora de verano de Europa central)</t>', h: 'Thu Jul 17 2025 02:00:00 GMT+0200 (hora de verano de Europa central)', w: 'Thu Jul 17 2025 02:00:00 GMT+0200 (hora de verano de Europa central)'}
+G3
+: 
+{t: 's', v: 'Mon Sep 08 2025 02:00:00 GMT+0200 (hora de verano de Europa central)', r: '<t>Mon Sep 08 2025 02:00:00 GMT+0200 (hora de verano de Europa central)</t>', h: 'Mon Sep 08 2025 02:00:00 GMT+0200 (hora de verano de Europa central)', w: 'Mon Sep 08 2025 02:00:00 GMT+0200 (hora de verano de Europa central)'}
+H1
+: 
+{t: 's', v: 'Hora Registro', r: '<t>Hora Registro</t>', h: 'Hora Registro', w: 'Hora Registro'}
+I1
+: 
+{t: 's', v: 'Usuario Registro', r: '<t>Usuario Registro</t>', h: 'Usuario Registro', w: 'Usuario Registro'}
+I2
+: 
+{t: 's', v: 'RVASQU1', r: '<t>RVASQU1</t>', h: 'RVASQU1', w: 'RVASQU1'}
+I3
+: 
+{t: 's', v: 'RVASQU1', r: '<t>RVASQU1</t>', h: 'RVASQU1', w: 'RVASQU1'}
