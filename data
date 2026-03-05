@@ -11,96 +11,64 @@ oFileUpload: function (oEvent) {
         var workbook = XLSX.read(data, { type: "array" });
         var sheet = workbook.Sheets[workbook.SheetNames[0]];
 
-        var aExcel = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        // leer excel como objetos
+        var aExcelData = XLSX.utils.sheet_to_json(sheet);
 
-        if (!aExcel.length) {
+        if (!aExcelData.length) {
             sap.m.MessageToast.show("Excel vacío");
             return;
         }
 
-        var aHeaders = aExcel[0];
-        var aRows = aExcel.slice(1);
-
         var oTable = this.byId("tableNaturaleza");
 
-        // LEGGERE PROPRIETÀ DAL TEMPLATE
-        var aColumns = oTable.getColumns().map(function (oCol) {
-
-            var label = "";
-            if (oCol.getLabel()) {
-                label = oCol.getLabel().getText().trim();
-            }
+        // propiedades SAP de la tabla
+        var aProperties = oTable.getColumns().map(function (oCol) {
 
             var template = oCol.getTemplate();
             var property = "";
 
-            if (template) {
+            if (!template) return "";
 
-                if (template.getBindingPath("value")) {
-                    property = template.getBindingPath("value");
-                }
-                else if (template.getBindingPath("selectedKey")) {
-                    property = template.getBindingPath("selectedKey");
-                }
-                else if (template.getBindingPath("text")) {
-                    property = template.getBindingPath("text");
-                }
-                else if (template.getBindingPath("dateValue")) {
-                    property = template.getBindingPath("dateValue");
-                }
-
-                if (property.includes(">")) {
-                    property = property.split(">")[1];
-                }
-
+            if (template.getBindingPath("value")) {
+                property = template.getBindingPath("value");
+            }
+            else if (template.getBindingPath("selectedKey")) {
+                property = template.getBindingPath("selectedKey");
+            }
+            else if (template.getBindingPath("text")) {
+                property = template.getBindingPath("text");
+            }
+            else if (template.getBindingPath("dateValue")) {
+                property = template.getBindingPath("dateValue");
             }
 
-            return {
-                label: label.toLowerCase(),
-                property: property
-            };
-
-        });
-
-        // MAPPA EXCEL → SAP
-        var columnMap = {};
-
-        aHeaders.forEach(function (excelHeader, i) {
-
-            if (!excelHeader) return;
-
-            var header = excelHeader.toString().trim().toLowerCase();
-
-            var match = aColumns.find(function (col) {
-                return col.label === header;
-            });
-
-            if (match && match.property) {
-                columnMap[i] = match.property;
+            if (property.includes(">")) {
+                property = property.split(">")[1];
             }
 
-        });
+            return property;
 
-        // CREARE DATI
-        var aData = aRows.map(function (row, index) {
+        }).filter(Boolean);
+
+        // construir datos
+        var aData = aExcelData.map(function (row, index) {
 
             var obj = {
                 _numerico: index + 1
             };
 
-            Object.keys(columnMap).forEach(function (excelIndex) {
+            aProperties.forEach(function (prop) {
 
-                var property = columnMap[excelIndex];
-                var value = row[excelIndex];
+                var value = row[prop];
 
                 if (value === undefined) return;
 
-                // FECHA
+                // fecha
                 if (value instanceof Date) {
-                    obj[property] = value;
+                    obj[prop] = value;
                 }
 
-                // HORA
+                // hora
                 else if (typeof value === "string" && value.match(/^\d{2}:\d{2}:\d{2}$/)) {
 
                     var parts = value.split(":");
@@ -110,12 +78,11 @@ oFileUpload: function (oEvent) {
                         parseInt(parts[1]) * 60 +
                         parseInt(parts[2])) * 1000;
 
-                    obj[property] = { ms: ms };
-
+                    obj[prop] = { ms: ms };
                 }
 
                 else {
-                    obj[property] = value;
+                    obj[prop] = value;
                 }
 
             });
@@ -137,4 +104,5 @@ oFileUpload: function (oEvent) {
     }.bind(this);
 
     reader.readAsArrayBuffer(oFile);
+
 }
