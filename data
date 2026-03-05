@@ -11,7 +11,6 @@ oFileUpload: function (oEvent) {
         var workbook = XLSX.read(data, { type: "array" });
         var sheet = workbook.Sheets[workbook.SheetNames[0]];
 
-        // Excel come array
         var aExcel = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
         if (!aExcel.length) {
@@ -24,9 +23,8 @@ oFileUpload: function (oEvent) {
 
         var oTable = this.byId("tableNaturaleza");
 
-        // ----- LEGGERE LE COLONNE DELLA TABLE -----
-
-        var aColumnInfo = oTable.getColumns().map(function (oCol) {
+        // LEGGERE PROPRIETÀ DAL TEMPLATE
+        var aColumns = oTable.getColumns().map(function (oCol) {
 
             var label = "";
             if (oCol.getLabel()) {
@@ -38,25 +36,23 @@ oFileUpload: function (oEvent) {
 
             if (template) {
 
-                var binding =
-                    template.getBindingInfo("value") ||
-                    template.getBindingInfo("text") ||
-                    template.getBindingInfo("selectedKey") ||
-                    template.getBindingInfo("dateValue");
-
-                if (binding) {
-
-                    if (binding.parts && binding.parts.length) {
-                        property = binding.parts[0].path;
-                    } else if (binding.path) {
-                        property = binding.path;
-                    }
-
-                    if (property.includes(">")) {
-                        property = property.split(">")[1];
-                    }
-
+                if (template.getBindingPath("value")) {
+                    property = template.getBindingPath("value");
                 }
+                else if (template.getBindingPath("selectedKey")) {
+                    property = template.getBindingPath("selectedKey");
+                }
+                else if (template.getBindingPath("text")) {
+                    property = template.getBindingPath("text");
+                }
+                else if (template.getBindingPath("dateValue")) {
+                    property = template.getBindingPath("dateValue");
+                }
+
+                if (property.includes(">")) {
+                    property = property.split(">")[1];
+                }
+
             }
 
             return {
@@ -66,8 +62,7 @@ oFileUpload: function (oEvent) {
 
         });
 
-        // ----- MAPPA EXCEL -> PROPRIETA SAP -----
-
+        // MAPPA EXCEL → SAP
         var columnMap = {};
 
         aHeaders.forEach(function (excelHeader, i) {
@@ -76,7 +71,7 @@ oFileUpload: function (oEvent) {
 
             var header = excelHeader.toString().trim().toLowerCase();
 
-            var match = aColumnInfo.find(function (col) {
+            var match = aColumns.find(function (col) {
                 return col.label === header;
             });
 
@@ -86,8 +81,7 @@ oFileUpload: function (oEvent) {
 
         });
 
-        // ----- CREARE DATI PER IL MODEL -----
-
+        // CREARE DATI
         var aData = aRows.map(function (row, index) {
 
             var obj = {
@@ -117,6 +111,7 @@ oFileUpload: function (oEvent) {
                         parseInt(parts[2])) * 1000;
 
                     obj[property] = { ms: ms };
+
                 }
 
                 else {
@@ -128,8 +123,6 @@ oFileUpload: function (oEvent) {
             return obj;
 
         });
-
-        // ----- CARGAR DATOS EN EL MODELO -----
 
         var oModel = this.getView().getModel("mapfresa");
 
@@ -144,5 +137,4 @@ oFileUpload: function (oEvent) {
     }.bind(this);
 
     reader.readAsArrayBuffer(oFile);
-
 }
