@@ -3,42 +3,6 @@ oFileUpload: function (oEvent) {
     var oFile = oEvent.getParameter("files")[0];
     if (!oFile) return;
 
-    var oTable = this.byId("tableNaturaleza");
-
-    // costruire mapping colonne dinamico
-    var aColumns = oTable.getColumns().map(function (oColumn) {
-
-        var sLabel = oColumn.getLabel() ? oColumn.getLabel().getText() : "";
-
-        var sProperty =
-            oColumn.getSortProperty() ||
-            oColumn.getFilterProperty();
-
-        // se non esiste (es: _numerico)
-        if (!sProperty) {
-
-            var oTemplate = oColumn.getTemplate();
-
-            if (oTemplate) {
-
-                var oBinding =
-                    oTemplate.getBindingInfo("text") ||
-                    oTemplate.getBindingInfo("value") ||
-                    oTemplate.getBindingInfo("selectedKey");
-
-                if (oBinding && oBinding.parts && oBinding.parts.length) {
-                    sProperty = oBinding.parts[0].path;
-                }
-            }
-        }
-
-        return {
-            label: sLabel,
-            property: sProperty
-        };
-
-    });
-
     var reader = new FileReader();
 
     reader.onload = function (e) {
@@ -48,28 +12,25 @@ oFileUpload: function (oEvent) {
 
         var sheet = workbook.Sheets[workbook.SheetNames[0]];
 
-        var rows = XLSX.utils.sheet_to_json(sheet);
+        // leggere excel come array
+        var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-        var aData = rows.map(function (excelRow, index) {
+        // togliere header
+        rows.shift();
 
-            var oRow = {};
+        var aData = rows.map(function (r, i) {
 
-            aColumns.forEach(function (col) {
-
-                if (!col.property) return;
-
-                var vValue = excelRow[col.label];
-
-                // gestire numerico
-                if (col.property === "_numerico") {
-                    vValue = vValue || index + 1;
-                }
-
-                oRow[col.property] = vValue;
-
-            });
-
-            return oRow;
+            return {
+                _numerico: r[0],
+                ClassId: r[1],
+                SaknrLow: r[2],
+                SaknrHigh: r[3],
+                DateLow: r[4],
+                DateHigh: r[5],
+                ExecutionDate: r[6],
+                ExecutionHour: r[7],
+                Userid: r[8]
+            };
 
         });
 
