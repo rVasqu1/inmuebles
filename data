@@ -1,87 +1,25 @@
- oFileUpload: function (oEvent) {
-                var oFile = oEvent.getParameter("files")[0];
-                if (!oFile) return;
-            
-                var reader = new FileReader();
-            
-                reader.onload = function (e) {
-                    var data = new Uint8Array(e.target.result);
-                    var workbook = XLSX.read(data, { type: "array" });
-                    var sheet = workbook.Sheets[workbook.SheetNames[0]];
-            
-                    var aExcel = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-            
-                    if (!aExcel.length) {
-                        sap.m.MessageToast.show("Excel vacío");
-                        return;
-                    }
-            
-                    var aHeaders = aExcel[0];
-                    var aRows = aExcel.slice(1);
-                    var aData = [];
-            
-                    // Funzione per convertire date numeriche Excel in JS Date
-                    function excelDateToJSDate(excelDate) {
-                        return new Date(Math.round((excelDate - 25569) * 86400 * 1000));
-                    }
-            
-                    for (var i = 0; i < aRows.length; i++) {
-                        var row = aRows[i];
-                        if (!row.length) continue;
-            
-                        // Creazione contesto OData
-                        var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
-                            properties: { Zsociedad: '0004' }
-                        });
-            
-                        var obj = {
-                            _pathSmarfield: oContextNat.getPath(),
-                            _numerico: i + 1
-                        };
-            
-                        // Colonne principali
-                        obj.ClassId = row[0] || "";
-                        obj.SaknrLow = row[1] || "";
-                        obj.SaknrHigh = row[2] || "";
-            
-                        // Date (Excel numeriche o JS Date)
-                        if (row[3]) obj.DateLow = typeof row[3] === "number" ? excelDateToJSDate(row[3]) : new Date(row[3]);
-                        if (row[4]) obj.DateHigh = typeof row[4] === "number" ? excelDateToJSDate(row[4]) : new Date(row[4]);
-                        if (row[5]) obj.ExecutionDate = typeof row[5] === "number" ? excelDateToJSDate(row[5]) : new Date(row[5]);
-            
-                        // Ora
-                        if (row[6]) {
-                            var hour = 0, min = 0, sec = 0;
-            
-                            if (typeof row[6] === "number") {
-                                // Excel salva l'orario come frazione di giorno
-                                var totalSeconds = Math.round(row[6] * 24 * 3600);
-                                hour = Math.floor(totalSeconds / 3600);
-                                min = Math.floor((totalSeconds % 3600) / 60);
-                                sec = totalSeconds % 60;
-                            } else if (typeof row[6] === "string") {
-                                var parts = row[6].split(":");
-                                hour = parseInt(parts[0]) || 0;
-                                min = parseInt(parts[1]) || 0;
-                                sec = parseInt(parts[2]) || 0;
-                            }
-            
-                            obj.ExecutionHour = { ms: (hour * 3600 + min * 60 + sec) * 1000 };
-                        }
-            
-                        // Utente
-                        obj.Userid = row[7] || "";
-            
-                        aData.push(obj);
-                    }
-            
-                    // Aggiornamento modello
-                    var oModel = this.getView().getModel("mapfresa");
-                    oModel.setProperty("/naturaleza", aData);
-                    oModel.refresh(true);
-            
-                    sap.m.MessageToast.show("Excel cargado correctamente");
-                }.bind(this);
-            
-                reader.readAsArrayBuffer(oFile);
-            }
+if (row[6]) {
+    var ms = null;
+
+    if (typeof row[6] === "number") {
+        // Excel salva date+ore come numero decimale
+        var fractional = row[6] % 1; // prende solo la frazione per l'ora
+        ms = Math.round(fractional * 24 * 3600 * 1000);
+    } else if (row[6] instanceof Date) {
+        ms = (row[6].getHours() * 3600 + row[6].getMinutes() * 60 + row[6].getSeconds()) * 1000;
+    } else if (typeof row[6] === "string") {
+        var v = row[6].trim().toUpperCase();
+        var ampm = v.includes("AM") || v.includes("PM");
+        var parts = v.replace(/AM|PM/, "").split(":");
+        var h = parseInt(parts[0]) || 0;
+        var m = parseInt(parts[1]) || 0;
+        var s = parseInt(parts[2]) || 0;
+        if (ampm) {
+            if (v.includes("PM") && h < 12) h += 12;
+            if (v.includes("AM") && h === 12) h = 0;
+        }
+        ms = (h * 3600 + m * 60 + s) * 1000;
+    }
+
+    if (ms != null) obj.ExecutionHour = { ms: ms };
+}
