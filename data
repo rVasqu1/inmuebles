@@ -1,62 +1,88 @@
-<IconTabFilter text="{i18n>naturaleza}" key="naturaleza">
-				<t:Table id="tableNaturaleza"	
-						rows="{mapfresa>/naturaleza}" 
-						selectionMode="Multi"
-						visibleRowCountMode="Auto"
-						threshold="15"
-						scrollThreshold="50"
-						enableBusyIndicator="true"
-                        rowsUpdated="rowsUpdated">
-					<t:extension>
-					<OverflowToolbar style="Clear">						
-						<ToolbarSpacer/>
-						<!--  INI RJVS 04/03/2025 botones upload y download -->
-							<unified:FileUploader id="fileUploader" buttonOnly="true" change="oFileUpload" uploadUrl="/dummy" fileType="xlsx" />
-							<Button
-							press= "onDownloadExcel"
-							icon="sap-icon://download"
-							/>
-						<!--  FIN RJVS 04/03/2025 botones upload y download -->
-						<Button
-							icon="sap-icon://add"
-							press="onAddRowNat" visible="{=${aux>/procesado} ? false : true}"/>
-                        <Button
-							icon="sap-icon://copy"
-							press="onCopyRowNat" visible="{=${aux>/procesado}? false : true}"/>
-							<Button
-							icon="sap-icon://delete"
-							press="onDeleteRowNat" visible="{=${aux>/procesado}? false : true}"/>
-					</OverflowToolbar>
-				</t:extension>
-				<t:columns>
-				<t:Column
-						autoResizable="true"
-						width="4rem">
-						<Label text="" />
-						<t:template>
-                            <Text text="{mapfresa>_numerico}"/>
-						</t:template>
-					</t:Column>
-					<t:Column
-						autoResizable="true"
-						filterProperty = "ClassId"
-						sortProperty = "ClassId"
-						width="12rem">
-						<Label text="{i18n>naturaleza}" required="true" />
-						<t:template>
-                            <Select width="100%" forceSelection="false" fieldGroupIds="fgTipologia" enabled="{= ${mapfresa>Id} ? false : true}" selectedKey="{mapfresa>ClassId}" items="{mapfresa>/tipoNat}" change="onChangeClass">
-                                <core:Item key="{mapfresa>Id}" text="{= ${mapfresa>Orden} + ': ' + (${aux>/currentL} === 'es-ES' ? ${mapfresa>Description} : ${mapfresa>DescriptionEng}) }"/>
-                            </Select>
-						</t:template>
-					</t:Column>
-					<t:Column 
-						autoResizable="true"
-						filterProperty = "SaknrLow"
-						sortProperty = "SaknrLow"
-						width="8rem">
-						<Label text="{i18n>nCuentaDe}" required="true" />
-						<t:template>
-                            <smartField:SmartField id="nCuentaDe" fieldGroupIds="fg1" entitySet="ZCMSD_FACT_FEES"  fixedValueListValidationEnabled="true"  value="{SaknrLow}" change="onChangeCuentaDe"/>
-						</t:template>
-					</t:Column>
-					<t:Column
+onDownloadExcel: function () {
+    var oTable = this.byId("tableNaturaleza");
+    var oBinding = oTable.getBinding("rows");
+
+    // 1. Obtener los datos filtrados de la tabla
+    var aData = oBinding.getContexts().map(function(oContext) {
+        return oContext.getObject();
+    });
+
+    if (!aData || aData.length === 0) {
+        sap.m.MessageToast.show("No hay datos para exportar");
+        return;
+    }
+
+    // 2. Construir columnas dinámicamente
+    var aColumns = oTable.getColumns().map(function(oColumn) {
+        var sLabel = oColumn.getLabel().getText();
+        var oTemplate = oColumn.getTemplate();
+        var sProperty = "";
+
+        if (oTemplate.isA("sap.ui.comp.smartfield.SmartField")) {
+            var oInner = oTemplate._getContent();
+            if (oInner) {
+                var oBindInfo;
+                if (oInner.isA("sap.m.DatePicker") || oInner.isA("sap.m.DateTimePicker")) {
+                    oBindInfo = oInner.getBindingInfo("dateValue");
+                } else if (oInner.isA("sap.m.Input")) {
+                    oBindInfo = oInner.getBindingInfo("value");
+                } else if (oInner.isA("sap.m.Select")) {
+                    oBindInfo = oInner.getBindingInfo("selectedKey");
+                } else if (oInner.isA("sap.m.CheckBox")) {
+                    oBindInfo = oInner.getBindingInfo("selected");
+                } else {
+                    oBindInfo = oInner.getBindingInfo("text");
+                }
+                sProperty = oBindInfo ? (oBindInfo.parts ? oBindInfo.parts[0].path : oBindInfo.path) : "";
+            }
+        } else if (oTemplate.isA("sap.m.Select")) {
+            var oBind = oTemplate.getBindingInfo("selectedKey");
+            sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
+        } else if (oTemplate.isA("sap.m.Text")) {
+            var oBind = oTemplate.getBindingInfo("text");
+            sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
+        }
+
+        return {
+            label: sLabel,
+            property: sProperty,
+            type: sap.ui.export.EdmType.String
+        };
+    });
+
+    // 3. Formatear los datos antes de exportar
+    var aFormattedData = aData.map(function(oItem) {
+        var oRow = {};
+        aColumns.forEach(function(oCol) {
+            var vValue = oItem[oCol.property];
+
+            // Formatear fechas y horas
+            if (vValue instanceof Date) {
+                if (vValue.getHours() || vValue.getMinutes() || vValue.getSeconds()) {
+                    vValue = vValue.toLocaleDateString() + " " +
+                             vValue.getHours().toString().padStart(2,"0") + ":" +
+                             vValue.getMinutes().toString().padStart(2,"0") + ":" +
+                             vValue.getSeconds().toString().padStart(2,"0");
+                } else {
+                    vValue = vValue.toLocaleDateString();
+                }
+            }
+
+            oRow[oCol.property] = vValue != null ? vValue : "";
+        });
+        return oRow;
+    });
+
+    // 4. Generar el Excel
+    var oSettings = {
+        workbook: { columns: aColumns },
+        dataSource: aFormattedData,
+        fileName: "Export_Tabla.xlsx",
+        worker: false
+    };
+
+    var oSheet = new sap.ui.export.Spreadsheet(oSettings);
+    oSheet.build().finally(function() {
+        oSheet.destroy();
+    });
+}
