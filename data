@@ -1,22 +1,39 @@
-Método ABAP que procesa la tabla interna MT_REPARTOS para actualizar porcentajes de refacturación.
+sap.ui.define([
+    "sap/ui/core/mvc/Controller",
+    "sap/ui/core/util/File" // Librería esencial para la descarga
+], function (Controller, File) {
+    "use strict";
 
-Filtra registros de sociedad 0004 con expenses_refact > 0.
+    return Controller.extend("tu.namespace.controller.Main", {
 
-Valida la existencia de refact_society en T001 mediante FI_COMPANY_CODE_CHECK.
+        onExportXML: function () {
+            // 1. Obtener los datos del modelo vinculado a la tabla
+            // Cambia "items" por el path real de tu modelo
+            var oModel = this.getView().getModel();
+            var aData = oModel.getProperty("/items"); 
 
-Genera nuevos registros en LT_RSNAMSА con UUID y metadatos (usuario, fecha, hora).
+            if (!aData || aData.length === 0) {
+                return sap.m.MessageToast.show("No hay datos para exportar");
+            }
 
-Ajusta porcentajes si la sociedad es REGE consultando ZFI50.
+            // 2. Construir el string XML
+            var sXml = '<?xml version="1.0" encoding="UTF-8"?>\n<Data>\n';
+            
+            aData.forEach(function (oItem) {
+                sXml += '  <Row>\n';
+                for (var sKey in oItem) {
+                    // Evitar exportar propiedades internas de SAP (__metadata, etc.)
+                    if (oItem.hasOwnProperty(sKey) && typeof oItem[sKey] !== "object") {
+                        sXml += '    <' + sKey + '>' + oItem[sKey] + '</' + sKey + '>\n';
+                    }
+                }
+                sXml += '  </Row>\n';
+            });
+            
+            sXml += '</Data>';
 
-Recalcula expenses_refact usando fórmula: exp = exp / (1 - (temp_exp / 100)).
-
-Valida que los totales por cost_center sean exactamente 100%.
-
-Genera registros complementarios con refact_society = gc_refact_society_no_rege.
-
-Registra errores en MT_ERRORS usando la clase ZCX_RE_UPDATE_REPARTOS.
-
-Sustituye MT_REPARTOS por los valores procesados de LT_RSNAMSА.
-
-
-https://sapqfipas.es.mapfre.net:8100/sap/bc/ui2/flp?sap-client=200&sap-language=ES#zmsd_rege_monit-edit
+            // 3. Disparar la descarga mediante el núcleo de SAPUI5
+            File.save(sXml, "Exportacion_Tabla", "xml", "application/xml", "utf-8");
+        }
+    });
+});
