@@ -1,16 +1,133 @@
-this.getView().getModel().read("/ZCMSD_FACT_FEES", {
-                    success: function (odata) {
-                        for (var i in odata.results) {
-                            var oContextCeco = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
-                                properties: {
-                                    Zsociedad: '0004',
-                                    SaknrLow: odata.results[i].SaknrLow,
-                                    SaknrHigh: odata.results[i].SaknrHigh
-                                }
-                            })
-                            odata.results[i]._pathSmarfield = oContextCeco.getPath();
-                            odata.results[i]._numerico = (parseInt(i) + 1);
-                        }
-                        this.getView().getModel("mapfresa").setProperty("/naturaleza", odata.results);
-                    }.bind(this)
-                })
+  <IconTabFilter text="{i18n>naturaleza}" key="naturaleza">
+				<t:Table id="tableNaturaleza"	
+						rows="{mapfresa>/naturaleza}" 
+						selectionMode="Multi"
+						visibleRowCountMode="Auto"
+						threshold="15"
+						scrollThreshold="50"
+						enableBusyIndicator="true"
+                        rowsUpdated="rowsUpdated">
+					<t:extension>
+					<OverflowToolbar style="Clear">						
+						<ToolbarSpacer/>
+						<!--  INI RJVS 04/03/2025 botones upload y download -->
+							<unified:FileUploader id="fileUploader" buttonOnly="true" change="oFileUpload" uploadUrl="/dummy" fileType="xlsx" />
+							<Button
+							press= "onDownloadExcel"
+							icon="sap-icon://download"
+							/>
+						<!--  FIN RJVS 04/03/2025 botones upload y download -->
+						<Button
+							icon="sap-icon://add"
+							press="onAddRowNat" visible="{=${aux>/procesado} ? false : true}"/>
+                        <Button
+							icon="sap-icon://copy"
+							press="onCopyRowNat" visible="{=${aux>/procesado}? false : true}"/>
+							<Button
+							icon="sap-icon://delete"
+							press="onDeleteRowNat" visible="{=${aux>/procesado}? false : true}"/>
+					</OverflowToolbar>
+				</t:extension>
+				<t:columns>
+				<t:Column
+						autoResizable="true"
+						width="4rem">
+						<Label text="" />
+						<t:template>
+                            <Text text="{mapfresa>_numerico}"/>
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						filterProperty = "ClassId"
+						sortProperty = "ClassId"
+						width="12rem">
+						<Label text="{i18n>naturaleza}" required="true" />
+						<t:template>
+                            <Select width="100%" forceSelection="false" fieldGroupIds="fgTipologia" enabled="{= ${mapfresa>Id} ? false : true}" selectedKey="{mapfresa>ClassId}" items="{mapfresa>/tipoNat}" change="onChangeClass">
+                                <core:Item key="{mapfresa>Id}" text="{= ${mapfresa>Orden} + ': ' + (${aux>/currentL} === 'es-ES' ? ${mapfresa>Description} : ${mapfresa>DescriptionEng}) }"/>
+                            </Select>
+						</t:template>
+					</t:Column>
+					<t:Column 
+						autoResizable="true"
+						filterProperty = "SaknrLow"
+						sortProperty = "SaknrLow"
+						width="8rem">
+						<Label text="{i18n>nCuentaDe}" required="true" />
+						<t:template>
+                            <smartField:SmartField id="nCuentaDe" fieldGroupIds="fg1" entitySet="ZCMSD_FACT_FEES"  fixedValueListValidationEnabled="true"  value="{SaknrLow}" change="onChangeCuentaDe"/>
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						filterProperty = "SaknrHigh"
+						sortProperty = "SaknrHigh"
+						width="10rem">
+						<Label text="{i18n>nCuentaA}" />
+						<t:template>
+							<smartField:SmartField id="nCuentaA" entitySet="ZCMSD_FACT_FEES"  fixedValueListValidationEnabled="true"  value="{SaknrHigh}" change="onChangeCuentaA"/>
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						filterProperty = "DateLow"
+						sortProperty = "DateLow"
+						width="9rem">
+						<Label text="{i18n>desde}" required="true" />
+						<t:template>
+							<DatePicker dateValue="{path:'mapfresa>DateLow'}" 
+									displayFormat="dd/MM/yyyy"
+									 fieldGroupIds="fgDate" change="onChangeDate" />
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						filterProperty = "DateHigh"
+						sortProperty = "DateHigh"
+						width="9rem">
+						<Label text="{i18n>hasta}" required="true" />
+						<t:template>
+							<DatePicker dateValue="{path:'mapfresa>DateHigh'}" 
+									displayFormat="dd/MM/yyyy"
+									 fieldGroupIds="fgDate" change="onChangeDate" />
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						filterProperty = "ExecutionDate"
+						sortProperty = "ExecutionDate"
+						width="9rem">
+						<Label text="{i18n>fechaRegistro}" />
+						<t:template>
+							<Text text="{path:'mapfresa>ExecutionDate', type:'sap.ui.model.type.Date', formatOptions:{
+								pattern:'dd/MM/yyyy'
+							}}" 
+									textAlign="End"  />
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						filterProperty = "ExecutionHour"
+						sortProperty = "ExecutionHour"
+						width="9rem">
+						<Label text="{i18n>horaRegistro}" />
+						<t:template>
+							<Text text="{path:'mapfresa>ExecutionHour', type:'sap.ui.model.odata.type.Time'}" 
+									textAlign="End" />
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						filterProperty = "Userid"
+						sortProperty = "Userid"
+						width="9rem">
+						<Label text="{i18n>usuarioRegistro}" />
+						<t:template>
+							<Text text="{path:'mapfresa>Userid'}" 
+									textAlign="End" />
+						</t:template>
+					</t:Column>
+				</t:columns>				
+			</t:Table>
+			</IconTabFilter>
