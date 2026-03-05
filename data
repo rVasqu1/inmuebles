@@ -11,13 +11,12 @@ oFileUpload: function(oEvent) {
         var aData = [];
         var oModel = this.getView().getModel("mapfresa");
 
-        function excelDateToJSDate(n){return new Date(Math.round((n-25569)*86400*1000));}
+        function excelDateToJSDate(n){ return new Date(Math.round((n-25569)*86400*1000)); }
 
         for(var i=0;i<rows.length;i++){
             var row = rows[i];
             if(!row.length) continue;
 
-            // Creazione contesto OData
             var oContext = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES",{properties:{Zsociedad:'0004'}});
             var obj = {
                 _pathSmarfield:oContext.getPath(),
@@ -25,31 +24,34 @@ oFileUpload: function(oEvent) {
                 ClassId: row[0]||"",
                 SaknrLow: row[1]||"",
                 SaknrHigh: row[2]||"",
-                DateLow: row[3]? (typeof row[3]==="number"?excelDateToJSDate(row[3]):new Date(row[3])) : null,
-                DateHigh: row[4]? (typeof row[4]==="number"?excelDateToJSDate(row[4]):new Date(row[4])) : null,
-                ExecutionDate: row[5]? (typeof row[5]==="number"?excelDateToJSDate(row[5]):new Date(row[5])) : null,
                 Userid: row[7]||""
             };
 
-            // Legge la cella originale per ExecutionHour
-            var cellRef = XLSX.utils.encode_cell({r:i+1, c:6});
-            var cell = sheet[cellRef];
+            // ExecutionDate
+            var cellDateRef = XLSX.utils.encode_cell({r:i+1, c:5}); // colonna F = 5
+            var cellDate = sheet[cellDateRef];
+            if(cellDate){
+                if(cellDate.t==='n' || cellDate.t==='d') obj.ExecutionDate = excelDateToJSDate(cellDate.v);
+                else if(row[5]) obj.ExecutionDate = new Date(row[5]);
+            }
+
+            // ExecutionHour
+            var cellHourRef = XLSX.utils.encode_cell({r:i+1, c:6}); // colonna G = 6
+            var cellHour = sheet[cellHourRef];
             var ms = null;
 
-            if(cell){
-                if(cell.t==='n') ms = Math.round((cell.v%1)*24*3600*1000);
-                else if(cell.t==='s'){
-                    var p=cell.v.split(":"),h=parseInt(p[0])||0,m=parseInt(p[1])||0,s=parseInt(p[2])||0;
+            if(cellHour){
+                if(cellHour.t==='n') ms = Math.round((cellHour.v%1)*24*3600*1000);
+                else if(cellHour.t==='s'){
+                    var p=cellHour.v.split(":"),h=parseInt(p[0])||0,m=parseInt(p[1])||0,s=parseInt(p[2])||0;
                     ms = (h*3600+m*60+s)*1000;
                 }
             }
-
-            // fallback se la cella non è riconosciuta
+            // fallback se XLSX non riconosce la cella
             if(ms==null && row[6]){
                 var p=row[6].toString().split(":"),h=parseInt(p[0])||0,m=parseInt(p[1])||0,s=parseInt(p[2])||0;
                 ms = (h*3600+m*60+s)*1000;
             }
-
             if(ms!=null) obj.ExecutionHour = {ms:ms};
 
             aData.push(obj);
