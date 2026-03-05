@@ -1,17 +1,91 @@
-this.getView().getModel().read("/ZCMSD_FACT_FEES", {
-    success: function (odata) {
+ oFileUpload: function (oEvent) {
 
-        for (var i in odata.results) {
-
-            var oContextCeco = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
-                properties: odata.results[i]   // ← IMPORTANTE
-            });
-
-            odata.results[i]._pathSmarfield = oContextCeco.getPath();
-            odata.results[i]._numerico = parseInt(i) + 1;
-        }
-
-        this.getView().getModel("mapfresa").setProperty("/naturaleza", odata.results);
-
-    }.bind(this)
-});
+                var oFile = oEvent.getParameter("files")[0];
+                if (!oFile) return;
+            
+                var reader = new FileReader();
+            
+                reader.onload = function (e) {
+            
+                    var data = new Uint8Array(e.target.result);
+                    var workbook = XLSX.read(data, { type: "array" });
+                    var sheet = workbook.Sheets[workbook.SheetNames[0]];
+            
+                    var aExcel = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+            
+                    if (!aExcel.length) {
+                        sap.m.MessageToast.show("Excel vacío");
+                        return;
+                    }
+            
+                    var aHeaders = aExcel[0];
+                    var aRows = aExcel.slice(1);
+            
+                    var aData = [];
+            
+                    for (var i = 0; i < aRows.length; i++) {
+            
+                        var row = aRows[i];
+            
+                        if (!row.length) continue;
+            
+                        // CREAR CONTEXTO ODATA (como hace onAddRowNat)
+                        var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
+                            properties: {
+                                Zsociedad: '0004'
+                            }
+                        });
+            
+                        var obj = {
+                            _pathSmarfield: oContextNat.getPath(),
+                            _numerico: i + 1
+                        };
+            
+                        obj.ClassId = row[0];
+                        obj.SaknrLow = row[1];
+                        obj.SaknrHigh = row[2];
+            
+                        // DESDE
+                        if (row[3]) {
+                            obj.DateLow = new Date(row[3]);
+                        }
+            
+                        // HASTA
+                        if (row[4]) {
+                            obj.DateHigh = new Date(row[4]);
+                        }
+            
+                        // FECHA REGISTRO
+                        if (row[5]) {
+                            obj.ExecutionDate = new Date(row[5]);
+                        }
+            
+                        // HORA REGISTRO
+                        if (row[6]) {
+            
+                            var parts = row[6].toString().split(":");
+            
+                            var ms =
+                                (parseInt(parts[0]) * 3600 +
+                                parseInt(parts[1]) * 60 +
+                                parseInt(parts[2])) * 1000;
+            
+                            obj.ExecutionHour = { ms: ms };
+                        }
+            
+                        obj.Userid = row[7];
+            
+                        aData.push(obj);
+                    }
+            
+                    var oModel = this.getView().getModel("mapfresa");
+            
+                    oModel.setProperty("/naturaleza", aData);
+                    oModel.refresh(true);
+            
+                    sap.m.MessageToast.show("Excel cargado correctamente");
+            
+                }.bind(this);
+            
+                reader.readAsArrayBuffer(oFile);
+            }
