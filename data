@@ -1,193 +1,91 @@
-  onCopyRowCeco: function (oEvent) {
-                var tableCeco = this.getView().byId("tableCeco");
-                var aIndex = tableCeco.getSelectedIndices();
-                var obj = this.getView().getModel("mapfresa").getData().ceco;
-                for (var i in aIndex) {
-                    var oContextCeco = this.getView().getModel().createEntry("/ZCMSD_FACT_CECO", {
-                        properties: {
-                            Zsociedad: '0004',
-                            CostCenter: obj[aIndex[i]].CostCenter
-                        }
-                    })
+oFileUpload: function (oEvent) {
 
-                    // Fila vacía 
-                    var oNewRow = jQuery.extend({}, obj[aIndex[i]]);
-                    oNewRow._pathSmarfield = oContextCeco.getPath();
-                    oNewRow.Id = undefined;
-                    oNewRow.ExecutionDate = undefined;
-                    oNewRow.ExecutionHour = undefined;
-                    oNewRow.Userid = undefined;
-                    obj.push(oNewRow);
-                    oNewRow._numerico = obj.length;
+    var oFile = oEvent.getParameter("files")[0];
+    if (!oFile) return;
+
+    var reader = new FileReader();
+
+    reader.onload = function (e) {
+
+        var data = new Uint8Array(e.target.result);
+        var workbook = XLSX.read(data, { type: "array" });
+        var sheet = workbook.Sheets[workbook.SheetNames[0]];
+
+        var aExcel = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+        if (!aExcel.length) {
+            sap.m.MessageToast.show("Excel vacío");
+            return;
+        }
+
+        var aHeaders = aExcel[0];
+        var aRows = aExcel.slice(1);
+
+        var aData = [];
+
+        for (var i = 0; i < aRows.length; i++) {
+
+            var row = aRows[i];
+
+            if (!row.length) continue;
+
+            // CREAR CONTEXTO ODATA (como hace onAddRowNat)
+            var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
+                properties: {
+                    Zsociedad: '0004'
                 }
-                this.getView().getModel("mapfresa").refresh();
+            });
 
-            },
-            onDeleteRowCeco: function () {
-                var oView = this.getView();
-                var tableCeco = oView.byId("tableCeco");
-                var aIndex = tableCeco.getSelectedIndices();
-                var oModel = oView.getModel("mapfresa");
-                var obj = oModel.getData().ceco;
-                var _deleteCeco = oModel.getData()._deleteCeco;
-                var aCeco = [];
-                for (var i in obj) {
-                    if (aIndex.filter((index) => index == i).length > 0) {
-                        if (obj[i].Id) {
-                            _deleteCeco.push(obj[i]);
-                        }
-                    } else {
-                        aCeco.push(obj[i]);
-                    }
-                }
-                this.getView().getModel("mapfresa").setProperty("/ceco", aCeco);
+            var obj = {
+                _pathSmarfield: oContextNat.getPath(),
+                _numerico: i + 1
+            };
 
-            },
-            onChangeCeCo: function (oEvent) {
-                var objectContext = oEvent.getSource().getBindingContext("mapfresa").getObject();
-                objectContext.CostCenter = oEvent.getParameter("value");
-                oEvent.getSource().setValueState("None");
-            },
-            onAddRowNat: function () {
-                var oModel = this.getView().getModel("mapfresa");
-                var aRows = oModel.getProperty("/naturaleza");
+            obj.ClassId = row[0];
+            obj.SaknrLow = row[1];
+            obj.SaknrHigh = row[2];
 
-                var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
-                    properties: {
-                        Zsociedad: '0004'
-                    }
-                })
+            // DESDE
+            if (row[3]) {
+                obj.DateLow = new Date(row[3]);
+            }
 
-                // Fila vacía 
-                var oNewRow = {
-                    _pathSmarfield: oContextNat.getPath()
-                };
+            // HASTA
+            if (row[4]) {
+                obj.DateHigh = new Date(row[4]);
+            }
 
-                aRows.push(oNewRow);
-                oNewRow._numerico = aRows.length;
-                oModel.setProperty("/naturaleza", aRows);
-            },
-            onCopyRowNat: function (oEvent) {
-                var tableNaturaleza = this.getView().byId("tableNaturaleza");
-                var aIndex = tableNaturaleza.getSelectedIndices();
-                var obj = this.getView().getModel("mapfresa").getData().naturaleza;
-                for (var i in aIndex) {
-                    var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
-                        properties: {
-                            Zsociedad: '0004',
-                            SaknrLow: obj[aIndex[i]].SaknrLow,
-                            SaknrHigh: obj[aIndex[i]].SaknrHigh
-                        }
-                    })
+            // FECHA REGISTRO
+            if (row[5]) {
+                obj.ExecutionDate = new Date(row[5]);
+            }
 
-                    // Fila vacía 
-                    var oNewRow = jQuery.extend({}, obj[aIndex[i]]);
-                    oNewRow._pathSmarfield = oContextNat.getPath();
-                    oNewRow.Id = undefined;
-                    oNewRow.ExecutionDate = undefined;
-                    oNewRow.ExecutionHour = undefined;
-                    oNewRow.Userid = undefined;
-                    obj.push(oNewRow);
-                    oNewRow._numerico = obj.length;
-                }
-                this.getView().getModel("mapfresa").refresh();
+            // HORA REGISTRO
+            if (row[6]) {
 
-            },
-            onDeleteRowNat: function () {
-                var oView = this.getView();
-                var tableNaturaleza = oView.byId("tableNaturaleza");
-                var aIndex = tableNaturaleza.getSelectedIndices();
-                var oModel = oView.getModel("mapfresa");
-                var obj = oModel.getData().naturaleza;
-                var aNaturaleza = [];
-                for (var i in obj) {
-                    if (aIndex.filter((index) => index == i).length == 0) {
-                        aNaturaleza.push(obj[i]);
-                    };
-                }
-                var _deleteNaturaleza = oModel.getData()._deleteNaturaleza;
-                var aNat = [];
-                for (var i in obj) {
-                    if (aIndex.filter((index) => index == i).length > 0) {
-                        if (obj[i].Id) {
-                            _deleteNaturaleza.push(obj[i]);
-                        }
-                    } else {
-                        aNat.push(obj[i]);
-                    }
-                }
-                oModel.setProperty("/naturaleza", aNat);
-            },
-            onChangeCuentaA: function (oEvent) {
-                var objectContext = oEvent.getSource().getBindingContext("mapfresa").getObject();
-                objectContext.SaknrHigh = oEvent.getParameter("value");
-            },
-            onChangeCuentaDe: function (oEvent) {
-                var objectContext = oEvent.getSource().getBindingContext("mapfresa").getObject();
-                objectContext.SaknrLow = oEvent.getParameter("value");
-            },
-            rowsUpdated: function (oEvent) {
-                var rows = oEvent.getSource().getRows();
-                for (var i in rows) {
-                    //Por cada fila debes settear el binding que se haya creado un binding para el smartfield
-                    if (rows[i].getBindingContext("mapfresa")) {
-                        var objectContext = rows[i].getBindingContext("mapfresa").getObject()
-                        rows[i].bindElement(objectContext._pathSmarfield);
-                    }
-                }
-            },
-            onAddRowTCeco: function () {
-                var oModel = this.getView().getModel("mapfresa");
-                var aRows = oModel.getProperty("/tipoCeco");
-                // Fila vacía 
-                var oNewRow = {
-                    Id: this.lastIdTCeco,
-                    Deleted: ''
-                };
-                this.lastIdTCeco = this.lastIdTCeco + 1;
+                var parts = row[6].toString().split(":");
 
-                aRows.push(oNewRow);
-                oNewRow._numerico = aRows.length;
-                oModel.setProperty("/tipoCeco", aRows);
-            },
-            onCopyRowTCeco: function (oEvent) {
-                var tableTipoCeco = this.getView().byId("tableTipoCeco");
-                var aIndex = tableTipoCeco.getSelectedIndices();
-                var obj = this.getView().getModel("mapfresa").getData().tipoCeco;
-                for (var i in aIndex) {
+                var ms =
+                    (parseInt(parts[0]) * 3600 +
+                    parseInt(parts[1]) * 60 +
+                    parseInt(parts[2])) * 1000;
 
-                    // Fila vacía 
-                    var oNewRow = jQuery.extend({}, obj[aIndex[i]]);
-                    oNewRow.Id = undefined;
-                    oNewRow.Orden = "";
-                    oNewRow.ExecutionDate = undefined;
-                    oNewRow.ExecutionHour = undefined;
-                    oNewRow.Userid = undefined;
-                    obj.push(oNewRow);
-                    oNewRow._numerico = obj.length;
-                }
-                this.getView().getModel("mapfresa").refresh();
+                obj.ExecutionHour = { ms: ms };
+            }
 
-            },
-            onDeleteRowTCeco: function () {
-                var oView = this.getView();
-                var tableTipoCeco = oView.byId("tableTipoCeco");
-                var aIndex = tableTipoCeco.getSelectedIndices();
-                var oModel = this.getView().getModel("mapfresa");
-                var obj = oModel.getData().tipoCeco;
-                var _deleteTipoCeco = oModel.getData()._deleteTipoCeco;
-                var aTCeco = [];
+            obj.Userid = row[7];
 
-                for (var i in obj) {
-                    if (aIndex.filter((index) => index == i).length > 0) {
-                        //Se comprueba si no hay algun ceco que este consumiendolo
-                        var cecos = oModel.getData().ceco;
-                        var found = false;
-                        for (var j in cecos) {
-                            if (cecos[j].TypeId === obj[i].Id) {
-                                found = true;
-                                break;
-                            }
-                        }
-                        if (found) {
-                            aTCeco.push(obj
+            aData.push(obj);
+        }
+
+        var oModel = this.getView().getModel("mapfresa");
+
+        oModel.setProperty("/naturaleza", aData);
+        oModel.refresh(true);
+
+        sap.m.MessageToast.show("Excel cargado correctamente");
+
+    }.bind(this);
+
+    reader.readAsArrayBuffer(oFile);
+}
