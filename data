@@ -1,7 +1,10 @@
 oFileUpload: function (oEvent) {
 
     var oFile = oEvent.getParameter("files")[0];
-    if (!oFile) return;
+    if (!oFile) {
+        sap.m.MessageToast.show("Seleccione un Excel");
+        return;
+    }
 
     var reader = new FileReader();
 
@@ -11,6 +14,7 @@ oFileUpload: function (oEvent) {
         var workbook = XLSX.read(data, { type: "array" });
         var sheet = workbook.Sheets[workbook.SheetNames[0]];
 
+        // leer excel como matriz
         var aExcel = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
         if (!aExcel || aExcel.length < 2) {
@@ -19,63 +23,49 @@ oFileUpload: function (oEvent) {
         }
 
         var aRows = aExcel.slice(1);
-
-        var oModel = this.getView().getModel("mapfresa");
-        var aNaturaleza = [];
+        var aData = [];
 
         for (var i = 0; i < aRows.length; i++) {
 
             var row = aRows[i];
+
             if (!row || row.length === 0) continue;
 
-            // Crear contexto OData (igual que SAP)
-            var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
-                properties: {
-                    Zsociedad: '0004'
-                }
-            });
+            var oRow = {};
 
-            var oRow = {
-                _pathSmarfield: oContextNat.getPath(),
-                _numerico: aNaturaleza.length + 1
-            };
+            // numerico
+            oRow._numerico = i + 1;
 
-            // Naturaleza
-            if (row[0]) {
-                oRow.ClassId = row[0];
+            // NATURALEZA
+            oRow.ClassId = row[0] ? row[0].toString() : "";
+
+            // CUENTA DE
+            oRow.SaknrLow = row[1] ? row[1].toString() : "";
+
+            // CUENTA A
+            oRow.SaknrHigh = row[2] ? row[2].toString() : "";
+
+            // FECHA DESDE
+            if (row[3] instanceof Date) {
+                oRow.DateLow = row[3];
             }
 
-            // N Cuenta De
-            if (row[1]) {
-                oRow.SaknrLow = row[1].toString();
+            // FECHA HASTA
+            if (row[4] instanceof Date) {
+                oRow.DateHigh = row[4];
             }
 
-            // N Cuenta A
-            if (row[2]) {
-                oRow.SaknrHigh = row[2].toString();
+            // FECHA REGISTRO
+            if (row[5] instanceof Date) {
+                oRow.ExecutionDate = row[5];
             }
 
-            // Desde
-            if (row[3]) {
-                oRow.DateLow = row[3] instanceof Date ? row[3] : new Date(row[3]);
-            }
-
-            // Hasta
-            if (row[4]) {
-                oRow.DateHigh = row[4] instanceof Date ? row[4] : new Date(row[4]);
-            }
-
-            // Fecha Registro
-            if (row[5]) {
-                oRow.ExecutionDate = row[5] instanceof Date ? row[5] : new Date(row[5]);
-            }
-
-            // Hora Registro
+            // HORA REGISTRO
             if (row[6]) {
 
-                if (typeof row[6] === "string") {
+                var parts = row[6].toString().split(":");
 
-                    var parts = row[6].split(":");
+                if (parts.length === 3) {
 
                     var ms =
                         (parseInt(parts[0]) * 3600 +
@@ -86,15 +76,41 @@ oFileUpload: function (oEvent) {
                 }
             }
 
-            // Usuario
-            if (row[7]) {
-                oRow.Userid = row[7];
+            // USUARIO
+            oRow.Userid = row[7] ? row[7].toString() : "";
+
+            // VALIDACIÓN mínima
+            if (!oRow.ClassId || !oRow.SaknrLow) {
+
+                sap.m.MessageBox.error(
+                    "Error en fila " + (i + 2) +
+                    ". Naturaleza o Cuenta De vacíos"
+                );
+
+                return;
             }
 
-            aNaturaleza.push(oRow);
+            // crear contexto SmartField
+            var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
+                properties: {
+                    Zsociedad: "0004",
+                    SaknrLow: oRow.SaknrLow,
+                    SaknrHigh: oRow.SaknrHigh
+                }
+            });
+
+            oRow._pathSmarfield = oContextNat.getPath();
+
+            aData.push(oRow);
         }
 
-        oModel.setProperty("/naturaleza", aNaturaleza);
+        var oModel = this.getView().getModel("mapfresa");
+
+        // reemplazar datos completamente
+        oModel.setProperty("/naturaleza", []);
+        oModel.refresh(true);
+
+        oModel.setProperty("/naturaleza", aData);
         oModel.refresh(true);
 
         sap.m.MessageToast.show("Excel cargado correctamente");
