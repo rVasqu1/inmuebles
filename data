@@ -12,24 +12,32 @@ onDownloadExcel: function () {
         return;
     }
 
-    // 2. Extraer columnas y sus propiedades dinámicamente
+    // 2. Extraer columnas y propiedades dinámicamente
     var aColumns = oTable.getColumns().map(function(oColumn) {
         var sLabel = oColumn.getLabel().getText();
         var oTemplate = oColumn.getTemplate();
         var sProperty = "";
 
-        // Detectar el tipo de control y su binding
+        // Detectar tipo de control y propiedad a exportar
         if (oTemplate.isA("sap.m.Text")) {
             var oBind = oTemplate.getBindingInfo("text");
             sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
-        } else if (oTemplate.isA("sap.m.Input")) {
+        } 
+        else if (oTemplate.isA("sap.m.Input")) {
+            // Para Input usamos la propiedad 'value'
             var oBind = oTemplate.getBindingInfo("value");
             sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
-        } else if (oTemplate.isA("sap.m.Select")) {
+        } 
+        else if (oTemplate.isA("sap.m.Select")) {
             var oBind = oTemplate.getBindingInfo("selectedKey");
             sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
-        } else {
-            // Por defecto, intentar text
+        } 
+        else if (oTemplate.isA("sap.m.DatePicker")) {
+            var oBind = oTemplate.getBindingInfo("dateValue");
+            sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
+        } 
+        else {
+            // Por defecto intentar text
             var oBind = oTemplate.getBindingInfo("text");
             sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
         }
@@ -41,15 +49,32 @@ onDownloadExcel: function () {
         };
     });
 
-    // 3. Configuración de Excel
+    // 3. Formatear los datos antes de pasar al Spreadsheet
+    var aFormattedData = aData.map(function(oItem) {
+        var oRow = {};
+        aColumns.forEach(function(oCol) {
+            var vValue = oItem[oCol.property];
+
+            // Formatear fecha si es Date
+            if (vValue instanceof Date) {
+                // Formato DD/MM/YYYY
+                vValue = vValue.toLocaleDateString();
+            }
+
+            // Para Input/Select ya tomamos el valor en el modelo
+            oRow[oCol.property] = vValue != null ? vValue : "";
+        });
+        return oRow;
+    });
+
+    // 4. Configuración de Excel
     var oSettings = {
         workbook: { columns: aColumns },
-        dataSource: aData,
+        dataSource: aFormattedData,
         fileName: "Export_Tabla.xlsx",
         worker: false
     };
 
-    // 4. Generar y descargar Excel
     var oSheet = new sap.ui.export.Spreadsheet(oSettings);
     oSheet.build().finally(function() {
         oSheet.destroy();
