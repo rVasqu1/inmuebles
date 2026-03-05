@@ -1,81 +1,92 @@
-	<t:Column 
-						autoResizable="true"
-						filterProperty = "SaknrLow"
-						sortProperty = "SaknrLow"
-						width="8rem">
-						<Label text="{i18n>nCuentaDe}" required="true" />
-						<t:template>
-                            <smartField:SmartField id="nCuentaDe" fieldGroupIds="fg1" entitySet="ZCMSD_FACT_FEES"  fixedValueListValidationEnabled="true"  value="{SaknrLow}" change="onChangeCuentaDe"/>
-						</t:template>
-					</t:Column>
-					<t:Column
-						autoResizable="true"
-						filterProperty = "SaknrHigh"
-						sortProperty = "SaknrHigh"
-						width="10rem">
-						<Label text="{i18n>nCuentaA}" />
-						<t:template>
-							<smartField:SmartField id="nCuentaA" entitySet="ZCMSD_FACT_FEES"  fixedValueListValidationEnabled="true"  value="{SaknrHigh}" change="onChangeCuentaA"/>
-						</t:template>
-					</t:Column>
-					<t:Column
-						autoResizable="true"
-						filterProperty = "DateLow"
-						sortProperty = "DateLow"
-						width="9rem">
-						<Label text="{i18n>desde}" required="true" />
-						<t:template>
-							<DatePicker dateValue="{path:'mapfresa>DateLow'}" 
-									displayFormat="dd/MM/yyyy"
-									 fieldGroupIds="fgDate" change="onChangeDate" />
-						</t:template>
-					</t:Column>
-					<t:Column
-						autoResizable="true"
-						filterProperty = "DateHigh"
-						sortProperty = "DateHigh"
-						width="9rem">
-						<Label text="{i18n>hasta}" required="true" />
-						<t:template>
-							<DatePicker dateValue="{path:'mapfresa>DateHigh'}" 
-									displayFormat="dd/MM/yyyy"
-									 fieldGroupIds="fgDate" change="onChangeDate" />
-						</t:template>
-					</t:Column>
-					<t:Column
-						autoResizable="true"
-						filterProperty = "ExecutionDate"
-						sortProperty = "ExecutionDate"
-						width="9rem">
-						<Label text="{i18n>fechaRegistro}" />
-						<t:template>
-							<Text text="{path:'mapfresa>ExecutionDate', type:'sap.ui.model.type.Date', formatOptions:{
-								pattern:'dd/MM/yyyy'
-							}}" 
-									textAlign="End"  />
-						</t:template>
-					</t:Column>
-					<t:Column
-						autoResizable="true"
-						filterProperty = "ExecutionHour"
-						sortProperty = "ExecutionHour"
-						width="9rem">
-						<Label text="{i18n>horaRegistro}" />
-						<t:template>
-							<Text text="{path:'mapfresa>ExecutionHour', type:'sap.ui.model.odata.type.Time'}" 
-									textAlign="End" />
-						</t:template>
-					</t:Column>
-					<t:Column
-						autoResizable="true"
-						filterProperty = "Userid"
-						sortProperty = "Userid"
-						width="9rem">
-						<Label text="{i18n>usuarioRegistro}" />
-						<t:template>
-							<Text text="{path:'mapfresa>Userid'}" 
-									textAlign="End" />
-						</t:template>
-					</t:Column>
-				</t:columns>				
-			</t:Table>
+onDownloadExcel: function () {
+    var oTable = this.byId("tableNaturaleza");
+    var oBinding = oTable.getBinding("rows");
+
+    // 1. Obtener los datos visibles/filtrados de la tabla
+    var aData = oBinding.getContexts().map(function(oContext) {
+        return oContext.getObject();
+    });
+
+    if (!aData || aData.length === 0) {
+        sap.m.MessageToast.show("No hay datos para exportar");
+        return;
+    }
+
+    // 2. Crear columnas dinámicamente, asegurando que cada columna tenga un 'property'
+    var aColumns = oTable.getColumns().map(function(oColumn, i) {
+        var sLabel = oColumn.getLabel().getText();
+        var sProperty = oColumn.getSortProperty() || oColumn.getFilterProperty() || "";
+
+        // Columna manual para la primera columna si no tiene sort/filter
+        if (!sProperty) {
+            var oTemplate = oColumn.getTemplate();
+            if (oTemplate.isA("sap.m.Text")) {
+                var oBind = oTemplate.getBindingInfo("text");
+                sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
+            } else if (oTemplate.isA("sap.ui.comp.smartfield.SmartField")) {
+                var oBind = oTemplate.getBindingInfo("value");
+                sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
+            } else if (oTemplate.isA("sap.m.Select")) {
+                var oBind = oTemplate.getBindingInfo("selectedKey");
+                sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
+            }
+        }
+
+        return {
+            label: sLabel,
+            property: sProperty,
+            type: sap.ui.export.EdmType.String
+        };
+    });
+
+    // 3. Mapear y formatear los datos
+    var aFormattedData = aData.map(function(oItem) {
+        var oRow = {};
+        aColumns.forEach(function(oCol) {
+            var vValue = oItem[oCol.property];
+
+            if (vValue != null) {
+                // Fecha/DatePicker/DateTimePicker
+                if (vValue instanceof Date) {
+                    if (vValue.getHours() || vValue.getMinutes() || vValue.getSeconds()) {
+                        // Fecha y hora
+                        vValue = vValue.toLocaleDateString() + " " +
+                                 vValue.getHours().toString().padStart(2,"0") + ":" +
+                                 vValue.getMinutes().toString().padStart(2,"0") + ":" +
+                                 vValue.getSeconds().toString().padStart(2,"0");
+                    } else {
+                        vValue = vValue.toLocaleDateString();
+                    }
+                }
+                // Hora tipo OData Edm.Time (e.g., "PT12H30M00S")
+                else if (oCol.property.toLowerCase().includes("hour") && typeof vValue === "string" && vValue.startsWith("PT")) {
+                    var matches = vValue.match(/PT(\d+)H(\d+)M(\d+)S/);
+                    if (matches) {
+                        var h = matches[1].padStart(2,"0");
+                        var m = matches[2].padStart(2,"0");
+                        var s = matches[3].padStart(2,"0");
+                        vValue = h + ":" + m + ":" + s;
+                    }
+                }
+            } else {
+                vValue = "";
+            }
+
+            oRow[oCol.property] = vValue;
+        });
+        return oRow;
+    });
+
+    // 4. Exportar Excel
+    var oSettings = {
+        workbook: { columns: aColumns },
+        dataSource: aFormattedData,
+        fileName: "Export_Tabla.xlsx",
+        worker: false
+    };
+
+    var oSheet = new sap.ui.export.Spreadsheet(oSettings);
+    oSheet.build().finally(function() {
+        oSheet.destroy();
+    });
+}
