@@ -1,17 +1,84 @@
-   oFileUpload: function (oEvent) {
-                var oFile = oEvent.getParameter("files")[0];
-                if (!oFile) return;
+oFileUpload: function (oEvent) {
 
-                var reader = new FileReader();
-                reader.onload = function (e) {
-                    var data = new Uint8Array(e.target.result);
-                    var workbook = XLSX.read(data, { type: "array" });
-                    var sheet = workbook.Sheets[workbook.SheetNames[0]];
-                    var rows = XLSX.utils.sheet_to_json(sheet);
+    var oFile = oEvent.getParameter("files")[0];
+    if (!oFile) return;
 
-                    var oModel = this.getView().getModel("mapfresa");
-                    oModel.setProperty("/naturaleza", rows)
-                }.bind(this);
-                reader.readAsArrayBuffer(oFile);
+    var oTable = this.byId("tableNaturaleza");
 
+    // costruire mapping colonne dinamico
+    var aColumns = oTable.getColumns().map(function (oColumn) {
+
+        var sLabel = oColumn.getLabel() ? oColumn.getLabel().getText() : "";
+
+        var sProperty =
+            oColumn.getSortProperty() ||
+            oColumn.getFilterProperty();
+
+        // se non esiste (es: _numerico)
+        if (!sProperty) {
+
+            var oTemplate = oColumn.getTemplate();
+
+            if (oTemplate) {
+
+                var oBinding =
+                    oTemplate.getBindingInfo("text") ||
+                    oTemplate.getBindingInfo("value") ||
+                    oTemplate.getBindingInfo("selectedKey");
+
+                if (oBinding && oBinding.parts && oBinding.parts.length) {
+                    sProperty = oBinding.parts[0].path;
+                }
             }
+        }
+
+        return {
+            label: sLabel,
+            property: sProperty
+        };
+
+    });
+
+    var reader = new FileReader();
+
+    reader.onload = function (e) {
+
+        var data = new Uint8Array(e.target.result);
+        var workbook = XLSX.read(data, { type: "array" });
+
+        var sheet = workbook.Sheets[workbook.SheetNames[0]];
+
+        var rows = XLSX.utils.sheet_to_json(sheet);
+
+        var aData = rows.map(function (excelRow, index) {
+
+            var oRow = {};
+
+            aColumns.forEach(function (col) {
+
+                if (!col.property) return;
+
+                var vValue = excelRow[col.label];
+
+                // gestire numerico
+                if (col.property === "_numerico") {
+                    vValue = vValue || index + 1;
+                }
+
+                oRow[col.property] = vValue;
+
+            });
+
+            return oRow;
+
+        });
+
+        var oModel = this.getView().getModel("mapfresa");
+
+        oModel.setProperty("/naturaleza", aData);
+        oModel.refresh(true);
+
+    }.bind(this);
+
+    reader.readAsArrayBuffer(oFile);
+}
