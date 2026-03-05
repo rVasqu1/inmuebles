@@ -1,107 +1,30 @@
-onDownloadExcel: function () {
+else if (oCol.property === "ExecutionHour") {
 
-    var oTable = this.byId("tableNaturaleza");
-    var oBinding = oTable.getBinding("rows");
+    // Caso OData: {ms: ...}
+    if (vValue && typeof vValue === "object" && vValue.ms !== undefined) {
 
-    var aContexts = oBinding.getContexts();
+        var totalSeconds = Math.floor(vValue.ms / 1000);
 
-    if (!aContexts.length) {
-        sap.m.MessageToast.show("No hay datos para exportar");
-        return;
+        var h = Math.floor(totalSeconds / 3600);
+        var m = Math.floor((totalSeconds % 3600) / 60);
+        var s = totalSeconds % 60;
+
+        vValue =
+            h.toString().padStart(2, "0") + ":" +
+            m.toString().padStart(2, "0") + ":" +
+            s.toString().padStart(2, "0");
     }
 
-    var aData = aContexts.map(function (oContext) {
-        return oContext.getObject();
-    });
+    // Caso string PT10H30M00S
+    else if (typeof vValue === "string") {
 
-    // Crear columnas desde la tabla
-    var aColumns = [];
+        var matches = vValue.match(/PT(\d+)H(\d+)M(\d+)S/);
 
-    oTable.getColumns().forEach(function (oColumn) {
-
-        var oLabel = oColumn.getLabel();
-        var sLabel = oLabel ? oLabel.getText() : "";
-
-        var sProperty =
-            oColumn.getSortProperty() ||
-            oColumn.getFilterProperty() ||
-            "";
-
-        if (!sProperty) {
-            return;
+        if (matches) {
+            vValue =
+                matches[1].padStart(2,"0") + ":" +
+                matches[2].padStart(2,"0") + ":" +
+                matches[3].padStart(2,"0");
         }
-
-        aColumns.push({
-            label: sLabel,
-            property: sProperty,
-            type: sap.ui.export.EdmType.String
-        });
-
-    });
-
-    // Formatear datos
-    var aFormattedData = aData.map(function (oItem) {
-
-        var oRow = {};
-
-        aColumns.forEach(function (oCol) {
-
-            var vValue = oItem[oCol.property];
-
-            // Fecha
-            if (vValue instanceof Date) {
-
-                vValue =
-                    vValue.getDate().toString().padStart(2, "0") + "/" +
-                    (vValue.getMonth() + 1).toString().padStart(2, "0") + "/" +
-                    vValue.getFullYear();
-
-            }
-
-            // Hora ODATA (PT10H30M00S)
-            else if (
-                oCol.property === "ExecutionHour" &&
-                typeof vValue === "string"
-            ) {
-
-                var matches = vValue.match(/PT(\d+)H(\d+)M(\d+)S/);
-
-                if (matches) {
-
-                    var h = matches[1].padStart(2, "0");
-                    var m = matches[2].padStart(2, "0");
-                    var s = matches[3].padStart(2, "0");
-
-                    vValue = h + ":" + m + ":" + s;
-                }
-            }
-
-            // valores null
-            if (vValue === null || vValue === undefined) {
-                vValue = "";
-            }
-
-            oRow[oCol.property] = vValue;
-
-        });
-
-        return oRow;
-
-    });
-
-    var oSettings = {
-        workbook: {
-            columns: aColumns
-        },
-        dataSource: aFormattedData,
-        fileName: "Export_Tabla_Naturaleza.xlsx",
-        worker: false
-    };
-
-    var oSheet = new sap.ui.export.Spreadsheet(oSettings);
-
-    oSheet.build().finally(function () {
-        oSheet.destroy();
-    });
-
+    }
 }
