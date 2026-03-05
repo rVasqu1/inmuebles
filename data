@@ -1,8 +1,8 @@
 onDownloadExcel: function () {
     var oTable = this.byId("tableNaturaleza");
-    var oBinding = oTable.getBinding("rows"); // binding de la tabla
-    
-    // 1. Obtener los datos actuales (respetando filtros y ordenamientos)
+    var oBinding = oTable.getBinding("rows");
+
+    // 1. Extraer datos filtrados/ordenados
     var aData = oBinding.getContexts().map(function(oContext) {
         return oContext.getObject();
     });
@@ -12,17 +12,26 @@ onDownloadExcel: function () {
         return;
     }
 
-    // 2. Obtener las columnas dinámicamente de la tabla
+    // 2. Extraer columnas y sus propiedades dinámicamente
     var aColumns = oTable.getColumns().map(function(oColumn) {
         var sLabel = oColumn.getLabel().getText();
         var oTemplate = oColumn.getTemplate();
-
-        // Obtener el path del binding de la celda (usualmente 'text' o 'title')
-        var oBindingInfo = oTemplate.getBindingInfo("text") || oTemplate.getBindingInfo("title");
         var sProperty = "";
-        if (oBindingInfo) {
-            // Si hay varios bindings (parts), tomar el primero
-            sProperty = oBindingInfo.parts ? oBindingInfo.parts[0].path : oBindingInfo.path;
+
+        // Detectar el tipo de control y su binding
+        if (oTemplate.isA("sap.m.Text")) {
+            var oBind = oTemplate.getBindingInfo("text");
+            sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
+        } else if (oTemplate.isA("sap.m.Input")) {
+            var oBind = oTemplate.getBindingInfo("value");
+            sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
+        } else if (oTemplate.isA("sap.m.Select")) {
+            var oBind = oTemplate.getBindingInfo("selectedKey");
+            sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
+        } else {
+            // Por defecto, intentar text
+            var oBind = oTemplate.getBindingInfo("text");
+            sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
         }
 
         return {
@@ -40,7 +49,7 @@ onDownloadExcel: function () {
         worker: false
     };
 
-    // 4. Generar y descargar el Excel
+    // 4. Generar y descargar Excel
     var oSheet = new sap.ui.export.Spreadsheet(oSettings);
     oSheet.build().finally(function() {
         oSheet.destroy();
