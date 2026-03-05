@@ -11,77 +11,41 @@ oFileUpload: function (oEvent) {
         var workbook = XLSX.read(data, { type: "array" });
         var sheet = workbook.Sheets[workbook.SheetNames[0]];
 
-        // leer excel como matriz
-        var aExcel = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        // leer excel
+        var rows = XLSX.utils.sheet_to_json(sheet);
 
-        if (!aExcel.length) {
+        if (!rows.length) {
             sap.m.MessageToast.show("Excel vacío");
             return;
         }
 
-        var aHeaders = aExcel[0];
-        var aRows = aExcel.slice(1);
-
         var oTable = this.byId("tableNaturaleza");
 
-        // obtener columnas de la tabla
-        var aColumns = oTable.getColumns().map(function (oCol) {
+        // obtener propiedades reales de la tabla
+        var aProperties = oTable.getColumns()
+            .map(function (oCol) {
+                return oCol.getSortProperty() || oCol.getFilterProperty();
+            })
+            .filter(Boolean);
 
-            var label = "";
-            if (oCol.getLabel()) {
-                label = oCol.getLabel().getText();
-            }
-
-            var property =
-                oCol.getSortProperty() ||
-                oCol.getFilterProperty() ||
-                "";
-
-            return {
-                label: label.trim(),
-                property: property
-            };
-
-        });
-
-        // crear mapa Excel -> propiedad SAP
-        var columnMap = {};
-
-        aHeaders.forEach(function (excelHeader, i) {
-
-            if (!excelHeader) return;
-
-            var header = excelHeader.toString().trim().toLowerCase();
-
-            var match = aColumns.find(function (col) {
-                return col.label.toLowerCase() === header;
-            });
-
-            if (match) {
-                columnMap[i] = match.property;
-            }
-
-        });
-
-        var aData = aRows.map(function (row, index) {
+        var aData = rows.map(function (row, index) {
 
             var obj = {
                 _numerico: index + 1
             };
 
-            Object.keys(columnMap).forEach(function (excelIndex) {
+            aProperties.forEach(function (prop) {
 
-                var property = columnMap[excelIndex];
-                var value = row[excelIndex];
+                var value = row[prop];
 
                 if (value === undefined) return;
 
-                // FECHA
+                // fecha
                 if (value instanceof Date) {
-                    obj[property] = value;
+                    obj[prop] = value;
                 }
 
-                // HORA
+                // hora HH:mm:ss
                 else if (typeof value === "string" && value.match(/^\d{2}:\d{2}:\d{2}$/)) {
 
                     var parts = value.split(":");
@@ -91,12 +55,11 @@ oFileUpload: function (oEvent) {
                         parseInt(parts[1]) * 60 +
                         parseInt(parts[2])) * 1000;
 
-                    obj[property] = { ms: ms };
-
+                    obj[prop] = { ms: ms };
                 }
 
                 else {
-                    obj[property] = value;
+                    obj[prop] = value;
                 }
 
             });
