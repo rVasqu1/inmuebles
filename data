@@ -1,28 +1,55 @@
-else if (oCol.property === "ExecutionHour") {
+oFileUpload: function(oEvent) {
+    var oFile = oEvent.getParameter("files")[0];
+    if (!oFile) return;
 
-                            if (vValue && typeof vValue === "object" && vValue.ms !== undefined) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var data = new Uint8Array(e.target.result);
+        var workbook = XLSX.read(data, { type: "array" });
+        var sheet = workbook.Sheets[workbook.SheetNames[0]];
+        var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
+        var aData = [];
 
-                                var totalSeconds = Math.floor(vValue.ms / 1000);
+        function excelDateToJSDate(n){return new Date(Math.round((n-25569)*86400*1000));}
 
-                                var h = Math.floor(totalSeconds / 3600);
-                                var m = Math.floor((totalSeconds % 3600) / 60);
-                                var s = totalSeconds % 60;
+        for(var i=0;i<rows.length;i++){
+            var row = rows[i];
+            if(!row.length) continue;
 
-                                vValue =
-                                    h.toString().padStart(2, "0") + ":" +
-                                    m.toString().padStart(2, "0") + ":" +
-                                    s.toString().padStart(2, "0");
-                            }
+            var oContext = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES",{properties:{Zsociedad:'0004'}});
+            var obj = {
+                _pathSmarfield:oContext.getPath(),
+                _numerico:i+1,
+                ClassId: row[0]||"",
+                SaknrLow: row[1]||"",
+                SaknrHigh: row[2]||"",
+                DateLow: row[3]? (typeof row[3]==="number"?excelDateToJSDate(row[3]):new Date(row[3])) : null,
+                DateHigh: row[4]? (typeof row[4]==="number"?excelDateToJSDate(row[4]):new Date(row[4])) : null,
+                ExecutionDate: row[5]? (typeof row[5]==="number"?excelDateToJSDate(row[5]):new Date(row[5])) : null,
+                Userid: row[7]||""
+            };
 
-                            else if (typeof vValue === "string") {
+            // Legge la cella originale per ExecutionHour
+            var cellRef = XLSX.utils.encode_cell({r:i+1, c:6});
+            var cell = sheet[cellRef];
+            if(cell){
+                if(cell.t==='n'){
+                    var frac = cell.v%1;
+                    obj.ExecutionHour = {ms:Math.round(frac*24*3600*1000)};
+                } else if(cell.t==='s'){
+                    var p=cell.v.split(":"),h=parseInt(p[0])||0,m=parseInt(p[1])||0,s=parseInt(p[2])||0;
+                    obj.ExecutionHour = {ms:(h*3600+m*60+s)*1000};
+                }
+            }
 
-                                var matches = vValue.match(/PT(\d+)H(\d+)M(\d+)S/);
+            aData.push(obj);
+        }
 
-                                if (matches) {
-                                    vValue =
-                                        matches[1].padStart(2, "0") + ":" +
-                                        matches[2].padStart(2, "0") + ":" +
-                                        matches[3].padStart(2, "0");
-                                }
-                            }
-                        }
+        var oModel = this.getView().getModel("mapfresa");
+        oModel.setProperty("/naturaleza",aData);
+        oModel.refresh(true);
+        sap.m.MessageToast.show("Excel cargado correctamente");
+    }.bind(this);
+
+    reader.readAsArrayBuffer(oFile);
+}
