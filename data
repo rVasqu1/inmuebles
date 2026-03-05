@@ -10,72 +10,79 @@ oFileUpload: function (oEvent) {
         var sheet = workbook.Sheets[workbook.SheetNames[0]];
 
         var aExcel = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
         if (!aExcel.length) {
             sap.m.MessageToast.show("Excel vacío");
             return;
         }
 
-        var aHeaders = aExcel[0];
         var aRows = aExcel.slice(1);
         var aData = [];
 
-        // Funzione per convertire date numeriche Excel in JS Date
+        // Funzione per convertire numeri Excel in JS Date
         function excelDateToJSDate(excelDate) {
             return new Date(Math.round((excelDate - 25569) * 86400 * 1000));
+        }
+
+        // Parsing date flessibile
+        function parseDateOrTime(value) {
+            if (value == null || value === "") return null;
+            if (typeof value === "number") return excelDateToJSDate(value);
+            if (value instanceof Date) return value;
+
+            var d = new Date(value);
+            if (!isNaN(d.getTime())) return d;
+
+            // Prova formato dd/mm/yyyy o d/m/yyyy
+            var parts = value.split(/[\/\-\.]/);
+            if (parts.length === 3) {
+                var day = parseInt(parts[0], 10);
+                var month = parseInt(parts[1], 10) - 1;
+                var year = parseInt(parts[2], 10);
+                if (year < 100) year += 2000;
+                var d2 = new Date(year, month, day);
+                if (!isNaN(d2.getTime())) return d2;
+            }
+            return null;
+        }
+
+        // Parsing ora flessibile in millisecondi
+        function parseTimeToMs(value) {
+            if (value == null || value === "") return null;
+            if (typeof value === "number") return Math.round(value * 24 * 3600 * 1000);
+            if (typeof value === "string") {
+                var parts = value.split(":");
+                var h = parseInt(parts[0]) || 0;
+                var m = parseInt(parts[1]) || 0;
+                var s = parseInt(parts[2]) || 0;
+                return (h * 3600 + m * 60 + s) * 1000;
+            }
+            return null;
         }
 
         for (var i = 0; i < aRows.length; i++) {
             var row = aRows[i];
             if (!row.length) continue;
 
-            // Creazione contesto OData
             var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
                 properties: { Zsociedad: '0004' }
             });
 
             var obj = {
                 _pathSmarfield: oContextNat.getPath(),
-                _numerico: i + 1
+                _numerico: i + 1,
+                ClassId: row[0] || "",
+                SaknrLow: row[1] || "",
+                SaknrHigh: row[2] || "",
+                DateLow: parseDateOrTime(row[3]),
+                DateHigh: parseDateOrTime(row[4]),
+                ExecutionDate: parseDateOrTime(row[5]),
+                ExecutionHour: parseTimeToMs(row[6]) != null ? { ms: parseTimeToMs(row[6]) } : null,
+                Userid: row[7] || ""
             };
-
-            // Colonne principali
-            obj.ClassId = row[0] || "";
-            obj.SaknrLow = row[1] || "";
-            obj.SaknrHigh = row[2] || "";
-
-            // Date (Excel numeriche o JS Date)
-            if (row[3]) obj.DateLow = typeof row[3] === "number" ? excelDateToJSDate(row[3]) : new Date(row[3]);
-            if (row[4]) obj.DateHigh = typeof row[4] === "number" ? excelDateToJSDate(row[4]) : new Date(row[4]);
-            if (row[5]) obj.ExecutionDate = typeof row[5] === "number" ? excelDateToJSDate(row[5]) : new Date(row[5]);
-
-            // Ora
-            if (row[6]) {
-                var hour = 0, min = 0, sec = 0;
-
-                if (typeof row[6] === "number") {
-                    // Excel salva l'orario come frazione di giorno
-                    var totalSeconds = Math.round(row[6] * 24 * 3600);
-                    hour = Math.floor(totalSeconds / 3600);
-                    min = Math.floor((totalSeconds % 3600) / 60);
-                    sec = totalSeconds % 60;
-                } else if (typeof row[6] === "string") {
-                    var parts = row[6].split(":");
-                    hour = parseInt(parts[0]) || 0;
-                    min = parseInt(parts[1]) || 0;
-                    sec = parseInt(parts[2]) || 0;
-                }
-
-                obj.ExecutionHour = { ms: (hour * 3600 + min * 60 + sec) * 1000 };
-            }
-
-            // Utente
-            obj.Userid = row[7] || "";
 
             aData.push(obj);
         }
 
-        // Aggiornamento modello
         var oModel = this.getView().getModel("mapfresa");
         oModel.setProperty("/naturaleza", aData);
         oModel.refresh(true);
