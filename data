@@ -1,39 +1,29 @@
-sap.ui.define([
-    "sap/ui/core/mvc/Controller",
-    "sap/ui/core/util/File" // Librería esencial para la descarga
-], function (Controller, File) {
-    "use strict";
-
-    return Controller.extend("tu.namespace.controller.Main", {
-
-        onExportXML: function () {
-            // 1. Obtener los datos del modelo vinculado a la tabla
-            // Cambia "items" por el path real de tu modelo
-            var oModel = this.getView().getModel();
-            var aData = oModel.getProperty("/items"); 
-
-            if (!aData || aData.length === 0) {
-                return sap.m.MessageToast.show("No hay datos para exportar");
-            }
-
-            // 2. Construir el string XML
-            var sXml = '<?xml version="1.0" encoding="UTF-8"?>\n<Data>\n';
-            
-            aData.forEach(function (oItem) {
-                sXml += '  <Row>\n';
-                for (var sKey in oItem) {
-                    // Evitar exportar propiedades internas de SAP (__metadata, etc.)
-                    if (oItem.hasOwnProperty(sKey) && typeof oItem[sKey] !== "object") {
-                        sXml += '    <' + sKey + '>' + oItem[sKey] + '</' + sKey + '>\n';
-                    }
-                }
-                sXml += '  </Row>\n';
-            });
-            
-            sXml += '</Data>';
-
-            // 3. Disparar la descarga mediante el núcleo de SAPUI5
-            File.save(sXml, "Exportacion_Tabla", "xml", "application/xml", "utf-8");
-        }
+onExportExcel: function() {
+    var oTable = this.byId("idMiTabla");
+    var oBinding = oTable.getBinding("rows"); // Captura el estado actual (filtros, sorters)
+    
+    // Obtenemos las columnas dinámicamente de la propia tabla
+    var aColumns = oTable.getColumns().map(function(oColumn) {
+        var sLabel = oColumn.getLabel().getText();
+        // Importante: El 'property' debe coincidir con el campo del modelo
+        var sProperty = oColumn.getTemplate().getBindingInfo("text").parts[0].path;
+        
+        return {
+            label: sLabel,
+            property: sProperty,
+            type: sap.ui.export.EdmType.String // O definir según el tipo de dato
+        };
     });
-});
+
+    var oSettings = {
+        workbook: { columns: aColumns },
+        dataSource: oBinding, // AQUÍ está la magia: usa el binding vivo de la tabla
+        fileName: "Export_Tabla.xlsx",
+        worker: false 
+    };
+
+    var oSheet = new sap.ui.export.Spreadsheet(oSettings);
+    oSheet.build().finally(function() {
+        oSheet.destroy();
+    });
+}
