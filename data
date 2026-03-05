@@ -1,2 +1,11 @@
-FormatException in property 'text' of 'Element sap.m.Text#__text16-__clone313': Illegal sap.ui.model.odata.type.Time value: {"ms":0}
-Hint: single properties referenced in composite bindings and within binding expressions are automatically converted into the type of the bound control property, unless a different 'targetType' is specified. targetType:'any' may avoid the conversion and lead to the expected behavior. -  
+if(ms!=null){
+    var totalSeconds = Math.floor(ms / 1000);
+    var h = Math.floor(totalSeconds / 3600);
+    var m = Math.floor((totalSeconds % 3600) / 60);
+    var s = totalSeconds % 60;
+
+    obj.ExecutionHour =
+        h.toString().padStart(2,"0") + ":" +
+        m.toString().padStart(2,"0") + ":" +
+        s.toString().padStart(2,"0");
+}
