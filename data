@@ -2,7 +2,6 @@ onDownloadExcel: function () {
     var oTable = this.byId("tableNaturaleza");
     var oBinding = oTable.getBinding("rows");
 
-    // 1. Obtener los datos filtrados de la tabla
     var aData = oBinding.getContexts().map(function(oContext) {
         return oContext.getObject();
     });
@@ -12,36 +11,10 @@ onDownloadExcel: function () {
         return;
     }
 
-    // 2. Construir columnas dinámicamente
+    // Crear columnas dinámicas usando sortProperty / filterProperty o label
     var aColumns = oTable.getColumns().map(function(oColumn) {
         var sLabel = oColumn.getLabel().getText();
-        var oTemplate = oColumn.getTemplate();
-        var sProperty = "";
-
-        if (oTemplate.isA("sap.ui.comp.smartfield.SmartField")) {
-            var oInner = oTemplate._getContent();
-            if (oInner) {
-                var oBindInfo;
-                if (oInner.isA("sap.m.DatePicker") || oInner.isA("sap.m.DateTimePicker")) {
-                    oBindInfo = oInner.getBindingInfo("dateValue");
-                } else if (oInner.isA("sap.m.Input")) {
-                    oBindInfo = oInner.getBindingInfo("value");
-                } else if (oInner.isA("sap.m.Select")) {
-                    oBindInfo = oInner.getBindingInfo("selectedKey");
-                } else if (oInner.isA("sap.m.CheckBox")) {
-                    oBindInfo = oInner.getBindingInfo("selected");
-                } else {
-                    oBindInfo = oInner.getBindingInfo("text");
-                }
-                sProperty = oBindInfo ? (oBindInfo.parts ? oBindInfo.parts[0].path : oBindInfo.path) : "";
-            }
-        } else if (oTemplate.isA("sap.m.Select")) {
-            var oBind = oTemplate.getBindingInfo("selectedKey");
-            sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
-        } else if (oTemplate.isA("sap.m.Text")) {
-            var oBind = oTemplate.getBindingInfo("text");
-            sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
-        }
+        var sProperty = oColumn.getSortProperty() || oColumn.getFilterProperty() || "";
 
         return {
             label: sLabel,
@@ -50,13 +23,13 @@ onDownloadExcel: function () {
         };
     });
 
-    // 3. Formatear los datos antes de exportar
+    // Formatear datos
     var aFormattedData = aData.map(function(oItem) {
         var oRow = {};
         aColumns.forEach(function(oCol) {
             var vValue = oItem[oCol.property];
 
-            // Formatear fechas y horas
+            // Si el valor es Date, formatear correctamente
             if (vValue instanceof Date) {
                 if (vValue.getHours() || vValue.getMinutes() || vValue.getSeconds()) {
                     vValue = vValue.toLocaleDateString() + " " +
@@ -73,7 +46,7 @@ onDownloadExcel: function () {
         return oRow;
     });
 
-    // 4. Generar el Excel
+    // Exportar Excel
     var oSettings = {
         workbook: { columns: aColumns },
         dataSource: aFormattedData,
