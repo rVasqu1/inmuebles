@@ -1,45 +1,133 @@
-oFileUpload: function (oEvent) {
+         onDownloadExcel: function () {
 
-    var oFile = oEvent.getParameter("files")[0];
-    if (!oFile) return;
+                var oTable = this.byId("tableNaturaleza");
+                var oBinding = oTable.getBinding("rows");
 
-    var reader = new FileReader();
+                var aContexts = oBinding.getContexts();
 
-    reader.onload = function (e) {
+                if (!aContexts.length) {
+                    sap.m.MessageToast.show("No hay datos para exportar");
+                    return;
+                }
 
-        var data = new Uint8Array(e.target.result);
-        var workbook = XLSX.read(data, { type: "array" });
+                var aData = aContexts.map(function (oContext) {
+                    return oContext.getObject();
+                });
 
-        var sheet = workbook.Sheets[workbook.SheetNames[0]];
+                var aColumns = [];
 
-        // leggere excel come array
-        var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                oTable.getColumns().forEach(function (oColumn) {
 
-        // togliere header
-        rows.shift();
+                    var oLabel = oColumn.getLabel();
+                    var sLabel = oLabel ? oLabel.getText() : "";
 
-        var aData = rows.map(function (r, i) {
+                    var sProperty =
+                        oColumn.getSortProperty() ||
+                        oColumn.getFilterProperty() ||
+                        "";
 
-            return {
-                _numerico: r[0],
-                ClassId: r[1],
-                SaknrLow: r[2],
-                SaknrHigh: r[3],
-                DateLow: r[4],
-                DateHigh: r[5],
-                ExecutionDate: r[6],
-                ExecutionHour: r[7],
-                Userid: r[8]
-            };
+                    if (!sProperty) {
+                        return;
+                    }
 
-        });
+                    aColumns.push({
+                        label: sLabel,
+                        property: sProperty,
+                        type: sap.ui.export.EdmType.String
+                    });
 
-        var oModel = this.getView().getModel("mapfresa");
+                });
 
-        oModel.setProperty("/naturaleza", aData);
-        oModel.refresh(true);
+                var aFormattedData = aData.map(function (oItem) {
 
-    }.bind(this);
+                    var oRow = {};
 
-    reader.readAsArrayBuffer(oFile);
-}
+                    aColumns.forEach(function (oCol) {
+
+                        var vValue = oItem[oCol.property];
+
+                        if (vValue instanceof Date) {
+
+                            vValue =
+                                vValue.getDate().toString().padStart(2, "0") + "/" +
+                                (vValue.getMonth() + 1).toString().padStart(2, "0") + "/" +
+                                vValue.getFullYear();
+
+                        }
+
+                        else if (oCol.property === "ExecutionHour") {
+
+                            if (vValue && typeof vValue === "object" && vValue.ms !== undefined) {
+
+                                var totalSeconds = Math.floor(vValue.ms / 1000);
+
+                                var h = Math.floor(totalSeconds / 3600);
+                                var m = Math.floor((totalSeconds % 3600) / 60);
+                                var s = totalSeconds % 60;
+
+                                vValue =
+                                    h.toString().padStart(2, "0") + ":" +
+                                    m.toString().padStart(2, "0") + ":" +
+                                    s.toString().padStart(2, "0");
+                            }
+
+                            else if (typeof vValue === "string") {
+
+                                var matches = vValue.match(/PT(\d+)H(\d+)M(\d+)S/);
+
+                                if (matches) {
+                                    vValue =
+                                        matches[1].padStart(2, "0") + ":" +
+                                        matches[2].padStart(2, "0") + ":" +
+                                        matches[3].padStart(2, "0");
+                                }
+                            }
+                        }
+
+                        if (vValue === null || vValue === undefined) {
+                            vValue = "";
+                        }
+
+                        oRow[oCol.property] = vValue;
+
+                    });
+
+                    return oRow;
+
+                });
+
+                var oSettings = {
+                    workbook: {
+                        columns: aColumns
+                    },
+                    dataSource: aFormattedData,
+                    fileName: "Export_Tabla_Naturaleza.xlsx",
+                    worker: false
+                };
+
+                var oSheet = new sap.ui.export.Spreadsheet(oSettings);
+
+                oSheet.build().finally(function () {
+                    oSheet.destroy();
+                });
+
+            },
+            // FIN RJVS 05/03/2025 Carga de datos desde excel
+            // INI RJVS 05/03/2025 Upload datos excel
+            oFileUpload: function (oEvent) {
+                var oFile = oEvent.getParameter("files")[0];
+                if (!oFile) return;
+
+                var reader = new FileReader();
+                reader.onload = function (e) {
+                    var data = new Uint8Array(e.target.result);
+                    var workbook = XLSX.read(data, { type: "array" });
+                    var sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    var rows = XLSX.utils.sheet_to_json(sheet);
+
+                    var oModel = this.getView().getModel("mapfresa");
+                    oModel.setProperty("/naturaleza", rows)
+                }.bind(this);
+                reader.readAsArrayBuffer(oFile);
+
+            }
