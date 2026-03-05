@@ -2,7 +2,6 @@ onDownloadExcel: function () {
     var oTable = this.byId("tableNaturaleza");
     var oBinding = oTable.getBinding("rows");
 
-    // 1. Extraer datos filtrados/ordenados
     var aData = oBinding.getContexts().map(function(oContext) {
         return oContext.getObject();
     });
@@ -12,34 +11,32 @@ onDownloadExcel: function () {
         return;
     }
 
-    // 2. Extraer columnas y propiedades dinámicamente
+    // 1. Crear columnas dinámicas
     var aColumns = oTable.getColumns().map(function(oColumn) {
         var sLabel = oColumn.getLabel().getText();
         var oTemplate = oColumn.getTemplate();
         var sProperty = "";
 
-        // Detectar tipo de control y propiedad a exportar
-        if (oTemplate.isA("sap.m.Text")) {
-            var oBind = oTemplate.getBindingInfo("text");
-            sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
-        } 
-        else if (oTemplate.isA("sap.m.Input")) {
-            // Para Input usamos la propiedad 'value'
-            var oBind = oTemplate.getBindingInfo("value");
-            sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
-        } 
-        else if (oTemplate.isA("sap.m.Select")) {
-            var oBind = oTemplate.getBindingInfo("selectedKey");
-            sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
-        } 
-        else if (oTemplate.isA("sap.m.DatePicker")) {
-            var oBind = oTemplate.getBindingInfo("dateValue");
-            sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
-        } 
-        else {
-            // Por defecto intentar text
-            var oBind = oTemplate.getBindingInfo("text");
-            sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
+        if (oTemplate.isA("sap.ui.comp.smartfield.SmartField")) {
+            var oInner = oTemplate._getContent();
+            if (oInner) {
+                var oBindInfo;
+                if (oInner.isA("sap.m.DatePicker") || oInner.isA("sap.m.DateTimePicker")) {
+                    oBindInfo = oInner.getBindingInfo("dateValue");
+                } else if (oInner.isA("sap.m.Input")) {
+                    oBindInfo = oInner.getBindingInfo("value");
+                } else if (oInner.isA("sap.m.Select")) {
+                    oBindInfo = oInner.getBindingInfo("selectedKey");
+                } else if (oInner.isA("sap.m.CheckBox")) {
+                    oBindInfo = oInner.getBindingInfo("selected");
+                } else {
+                    oBindInfo = oInner.getBindingInfo("text");
+                }
+                sProperty = oBindInfo ? (oBindInfo.parts ? oBindInfo.parts[0].path : oBindInfo.path) : "";
+            }
+        } else {
+            var oBindInfo = oTemplate.getBindingInfo("text") || oTemplate.getBindingInfo("value") || oTemplate.getBindingInfo("selectedKey");
+            sProperty = oBindInfo ? (oBindInfo.parts ? oBindInfo.parts[0].path : oBindInfo.path) : "";
         }
 
         return {
@@ -49,25 +46,32 @@ onDownloadExcel: function () {
         };
     });
 
-    // 3. Formatear los datos antes de pasar al Spreadsheet
+    // 2. Formatear datos
     var aFormattedData = aData.map(function(oItem) {
         var oRow = {};
         aColumns.forEach(function(oCol) {
             var vValue = oItem[oCol.property];
 
-            // Formatear fecha si es Date
             if (vValue instanceof Date) {
-                // Formato DD/MM/YYYY
-                vValue = vValue.toLocaleDateString();
+                // Detectar si tiene hora
+                if (vValue.getHours() || vValue.getMinutes() || vValue.getSeconds()) {
+                    // Fecha y hora: DD/MM/YYYY HH:mm:ss
+                    vValue = vValue.toLocaleDateString() + " " +
+                             vValue.getHours().toString().padStart(2,"0") + ":" +
+                             vValue.getMinutes().toString().padStart(2,"0") + ":" +
+                             vValue.getSeconds().toString().padStart(2,"0");
+                } else {
+                    // Solo fecha: DD/MM/YYYY
+                    vValue = vValue.toLocaleDateString();
+                }
             }
 
-            // Para Input/Select ya tomamos el valor en el modelo
             oRow[oCol.property] = vValue != null ? vValue : "";
         });
         return oRow;
     });
 
-    // 4. Configuración de Excel
+    // 3. Exportar Excel
     var oSettings = {
         workbook: { columns: aColumns },
         dataSource: aFormattedData,
