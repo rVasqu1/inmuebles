@@ -1,81 +1,62 @@
-var oTable = this.byId("tableNaturaleza");
-                var oBinding = oTable.getBinding("rows");
-            
-                // 1. Extraer datos filtrados/ordenados
-                var aData = oBinding.getContexts().map(function(oContext) {
-                    return oContext.getObject();
-                });
-            
-                if (!aData || aData.length === 0) {
-                    sap.m.MessageToast.show("No hay datos para exportar");
-                    return;
-                }
-            
-                // 2. Extraer columnas y propiedades dinámicamente
-                var aColumns = oTable.getColumns().map(function(oColumn) {
-                    var sLabel = oColumn.getLabel().getText();
-                    var oTemplate = oColumn.getTemplate();
-                    var sProperty = "";
-            
-                    // Detectar tipo de control y propiedad a exportar
-                    if (oTemplate.isA("sap.m.Text")) {
-                        var oBind = oTemplate.getBindingInfo("text");
-                        sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
-                    } 
-                    else if (oTemplate.isA("sap.m.Input")) {
-                        // Para Input usamos la propiedad 'value'
-                        var oBind = oTemplate.getBindingInfo("value");
-                        sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
-                    } 
-                    else if (oTemplate.isA("sap.m.Select")) {
-                        var oBind = oTemplate.getBindingInfo("selectedKey");
-                        sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
-                    } 
-                    else if (oTemplate.isA("sap.m.DatePicker")) {
-                        var oBind = oTemplate.getBindingInfo("dateValue");
-                        sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
-                    } 
-                    else {
-                        // Por defecto intentar text
-                        var oBind = oTemplate.getBindingInfo("text");
-                        sProperty = oBind ? (oBind.parts ? oBind.parts[0].path : oBind.path) : "";
-                    }
-            
-                    return {
-                        label: sLabel,
-                        property: sProperty,
-                        type: sap.ui.export.EdmType.String
-                    };
-                });
-            
-                // 3. Formatear los datos antes de pasar al Spreadsheet
-                var aFormattedData = aData.map(function(oItem) {
-                    var oRow = {};
-                    aColumns.forEach(function(oCol) {
-                        var vValue = oItem[oCol.property];
-            
-                        // Formatear fecha si es Date
-                        if (vValue instanceof Date) {
-                            // Formato DD/MM/YYYY
-                            vValue = vValue.toLocaleDateString();
-                        }
-            
-                        // Para Input/Select ya tomamos el valor en el modelo
-                        oRow[oCol.property] = vValue != null ? vValue : "";
-                    });
-                    return oRow;
-                });
-            
-                // 4. Configuración de Excel
-                var oSettings = {
-                    workbook: { columns: aColumns },
-                    dataSource: aFormattedData,
-                    fileName: "Export_Tabla.xlsx",
-                    worker: false
-                };
-            
-                var oSheet = new sap.ui.export.Spreadsheet(oSettings);
-                oSheet.build().finally(function() {
-                    oSheet.destroy();
-                });
-            
+<IconTabFilter text="{i18n>naturaleza}" key="naturaleza">
+				<t:Table id="tableNaturaleza"	
+						rows="{mapfresa>/naturaleza}" 
+						selectionMode="Multi"
+						visibleRowCountMode="Auto"
+						threshold="15"
+						scrollThreshold="50"
+						enableBusyIndicator="true"
+                        rowsUpdated="rowsUpdated">
+					<t:extension>
+					<OverflowToolbar style="Clear">						
+						<ToolbarSpacer/>
+						<!--  INI RJVS 04/03/2025 botones upload y download -->
+							<unified:FileUploader id="fileUploader" buttonOnly="true" change="oFileUpload" uploadUrl="/dummy" fileType="xlsx" />
+							<Button
+							press= "onDownloadExcel"
+							icon="sap-icon://download"
+							/>
+						<!--  FIN RJVS 04/03/2025 botones upload y download -->
+						<Button
+							icon="sap-icon://add"
+							press="onAddRowNat" visible="{=${aux>/procesado} ? false : true}"/>
+                        <Button
+							icon="sap-icon://copy"
+							press="onCopyRowNat" visible="{=${aux>/procesado}? false : true}"/>
+							<Button
+							icon="sap-icon://delete"
+							press="onDeleteRowNat" visible="{=${aux>/procesado}? false : true}"/>
+					</OverflowToolbar>
+				</t:extension>
+				<t:columns>
+				<t:Column
+						autoResizable="true"
+						width="4rem">
+						<Label text="" />
+						<t:template>
+                            <Text text="{mapfresa>_numerico}"/>
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						filterProperty = "ClassId"
+						sortProperty = "ClassId"
+						width="12rem">
+						<Label text="{i18n>naturaleza}" required="true" />
+						<t:template>
+                            <Select width="100%" forceSelection="false" fieldGroupIds="fgTipologia" enabled="{= ${mapfresa>Id} ? false : true}" selectedKey="{mapfresa>ClassId}" items="{mapfresa>/tipoNat}" change="onChangeClass">
+                                <core:Item key="{mapfresa>Id}" text="{= ${mapfresa>Orden} + ': ' + (${aux>/currentL} === 'es-ES' ? ${mapfresa>Description} : ${mapfresa>DescriptionEng}) }"/>
+                            </Select>
+						</t:template>
+					</t:Column>
+					<t:Column 
+						autoResizable="true"
+						filterProperty = "SaknrLow"
+						sortProperty = "SaknrLow"
+						width="8rem">
+						<Label text="{i18n>nCuentaDe}" required="true" />
+						<t:template>
+                            <smartField:SmartField id="nCuentaDe" fieldGroupIds="fg1" entitySet="ZCMSD_FACT_FEES"  fixedValueListValidationEnabled="true"  value="{SaknrLow}" change="onChangeCuentaDe"/>
+						</t:template>
+					</t:Column>
+					<t:Column
