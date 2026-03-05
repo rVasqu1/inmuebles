@@ -1,108 +1,16 @@
-oFileUpload: function (oEvent) {
-
-    var oFile = oEvent.getParameter("files")[0];
-    if (!oFile) return;
-
-    var reader = new FileReader();
-
-    reader.onload = function (e) {
-
-        var data = new Uint8Array(e.target.result);
-        var workbook = XLSX.read(data, { type: "array" });
-        var sheet = workbook.Sheets[workbook.SheetNames[0]];
-
-        // leer excel como objetos
-        var aExcelData = XLSX.utils.sheet_to_json(sheet);
-
-        if (!aExcelData.length) {
-            sap.m.MessageToast.show("Excel vacío");
-            return;
-        }
-
-        var oTable = this.byId("tableNaturaleza");
-
-        // propiedades SAP de la tabla
-        var aProperties = oTable.getColumns().map(function (oCol) {
-
-            var template = oCol.getTemplate();
-            var property = "";
-
-            if (!template) return "";
-
-            if (template.getBindingPath("value")) {
-                property = template.getBindingPath("value");
-            }
-            else if (template.getBindingPath("selectedKey")) {
-                property = template.getBindingPath("selectedKey");
-            }
-            else if (template.getBindingPath("text")) {
-                property = template.getBindingPath("text");
-            }
-            else if (template.getBindingPath("dateValue")) {
-                property = template.getBindingPath("dateValue");
-            }
-
-            if (property.includes(">")) {
-                property = property.split(">")[1];
-            }
-
-            return property;
-
-        }).filter(Boolean);
-
-        // construir datos
-        var aData = aExcelData.map(function (row, index) {
-
-            var obj = {
-                _numerico: index + 1
-            };
-
-            aProperties.forEach(function (prop) {
-
-                var value = row[prop];
-
-                if (value === undefined) return;
-
-                // fecha
-                if (value instanceof Date) {
-                    obj[prop] = value;
-                }
-
-                // hora
-                else if (typeof value === "string" && value.match(/^\d{2}:\d{2}:\d{2}$/)) {
-
-                    var parts = value.split(":");
-
-                    var ms =
-                        (parseInt(parts[0]) * 3600 +
-                        parseInt(parts[1]) * 60 +
-                        parseInt(parts[2])) * 1000;
-
-                    obj[prop] = { ms: ms };
-                }
-
-                else {
-                    obj[prop] = value;
-                }
-
-            });
-
-            return obj;
-
-        });
-
-        var oModel = this.getView().getModel("mapfresa");
-
-        oModel.setProperty("/naturaleza", []);
-        oModel.refresh(true);
-
-        oModel.setProperty("/naturaleza", aData);
-        oModel.refresh(true);
-
-        sap.m.MessageToast.show("Excel cargado correctamente");
-
-    }.bind(this);
-
-    reader.readAsArrayBuffer(oFile);
-
-}
+this.getView().getModel().read("/ZCMSD_FACT_FEES", {
+                    success: function (odata) {
+                        for (var i in odata.results) {
+                            var oContextCeco = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
+                                properties: {
+                                    Zsociedad: '0004',
+                                    SaknrLow: odata.results[i].SaknrLow,
+                                    SaknrHigh: odata.results[i].SaknrHigh
+                                }
+                            })
+                            odata.results[i]._pathSmarfield = oContextCeco.getPath();
+                            odata.results[i]._numerico = (parseInt(i) + 1);
+                        }
+                        this.getView().getModel("mapfresa").setProperty("/naturaleza", odata.results);
+                    }.bind(this)
+                })
