@@ -1,56 +1,17 @@
-Exportación SAPUI5
-: 
-!autofilter
-: 
-{ref: 'A1:I3'}
-!margins
-: 
-{left: 0.75, right: 0.75, top: 1, bottom: 1, header: 0.5, …}
-!ref
-: 
-"A1:I3"
-A1
-: 
-{t: 's', v: '_numerico', r: '<t>_numerico</t>', h: '_numerico', w: '_numerico'}
-A2
-: 
-{t: 's', v: '1', r: '<t>1</t>', h: '1', w: '1'}
-A3
-: 
-{t: 's', v: '2', r: '<t>2</t>', h: '2', w: '2'}
-B1
-: 
-{t: 's', v: 'Cuentas contables Fees', r: '<t>Cuentas contables Fees</t>', h: 'Cuentas contables Fees', w: 'Cuentas contables Fees'}
-C1
-: 
-{t: 's', v: 'Nº cuenta De', r: '<t>Nº cuenta De</t>', h: 'Nº cuenta De', w: 'Nº cuenta De'}
-D1
-: 
-{t: 's', v: 'Nº cuenta A', r: '<t>Nº cuenta A</t>', h: 'Nº cuenta A', w: 'Nº cuenta A'}
-E1
-: 
-{t: 's', v: 'Desde', r: '<t>Desde</t>', h: 'Desde', w: 'Desde'}
-F1
-: 
-{t: 's', v: 'Hasta', r: '<t>Hasta</t>', h: 'Hasta', w: 'Hasta'}
-G1
-: 
-{t: 's', v: 'Fecha Registro', r: '<t>Fecha Registro</t>', h: 'Fecha Registro', w: 'Fecha Registro'}
-G2
-: 
-{t: 's', v: 'Thu Jul 17 2025 02:00:00 GMT+0200 (hora de verano de Europa central)', r: '<t>Thu Jul 17 2025 02:00:00 GMT+0200 (hora de verano de Europa central)</t>', h: 'Thu Jul 17 2025 02:00:00 GMT+0200 (hora de verano de Europa central)', w: 'Thu Jul 17 2025 02:00:00 GMT+0200 (hora de verano de Europa central)'}
-G3
-: 
-{t: 's', v: 'Mon Sep 08 2025 02:00:00 GMT+0200 (hora de verano de Europa central)', r: '<t>Mon Sep 08 2025 02:00:00 GMT+0200 (hora de verano de Europa central)</t>', h: 'Mon Sep 08 2025 02:00:00 GMT+0200 (hora de verano de Europa central)', w: 'Mon Sep 08 2025 02:00:00 GMT+0200 (hora de verano de Europa central)'}
-H1
-: 
-{t: 's', v: 'Hora Registro', r: '<t>Hora Registro</t>', h: 'Hora Registro', w: 'Hora Registro'}
-I1
-: 
-{t: 's', v: 'Usuario Registro', r: '<t>Usuario Registro</t>', h: 'Usuario Registro', w: 'Usuario Registro'}
-I2
-: 
-{t: 's', v: 'RVASQU1', r: '<t>RVASQU1</t>', h: 'RVASQU1', w: 'RVASQU1'}
-I3
-: 
-{t: 's', v: 'RVASQU1', r: '<t>RVASQU1</t>', h: 'RVASQU1', w: 'RVASQU1'}
+this.getView().getModel().read("/ZCMSD_FACT_FEES", {
+    success: function (odata) {
+
+        for (var i in odata.results) {
+
+            var oContextCeco = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
+                properties: odata.results[i]   // ← IMPORTANTE
+            });
+
+            odata.results[i]._pathSmarfield = oContextCeco.getPath();
+            odata.results[i]._numerico = parseInt(i) + 1;
+        }
+
+        this.getView().getModel("mapfresa").setProperty("/naturaleza", odata.results);
+
+    }.bind(this)
+});
