@@ -1,8 +1,49 @@
-if(ms!=null){
-    var totalSeconds = Math.floor(ms / 1000);
-    var h = Math.floor(totalSeconds / 3600);
-    var m = Math.floor((totalSeconds % 3600) / 60);
-    var s = totalSeconds % 60;
-
-    obj.ExecutionHour = "PT" + h + "H" + m + "M" + s + "S";
-}
+oFileUpload: function(oEvent) {
+                //Se lee el fichero
+                var oFile = oEvent.getParameter("files")[0];
+                if (!oFile) return;
+            
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    debugger
+                    var data = new Uint8Array(e.target.result);
+                    var workbook = XLSX.read(data, { type: "array" });
+                    var sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
+                    var aData = [];
+                    var oModel = this.getView().getModel("mapfresa");
+            
+                    function excelDateToJSDate(n){ return new Date(Math.round((n-25569)*86400*1000)); }
+            
+                    for(var i=0;i<rows.length;i++){
+                        // Se comrpueba si existe y si no es nuevo
+                        var naturaleza = oModel.getProperty("/naturaleza");
+                        var item = naturaleza[i];
+                        var row = rows[i];
+                        if(item){
+                            if(item.Id){
+                                item.SaknrLow= row[1]||"",
+                                item.SaknrHigh= row[2]||""
+                            }else{
+                                item.ClassId= row[0]||"",
+                                item.SaknrLow= row[1]||"",
+                                item.SaknrHigh= row[2]||""
+                            }
+                        }else{
+                            item = {};
+                            item.ClassId= row[0]||"",
+                            item.SaknrLow= row[1]||"",
+                            item.SaknrHigh= row[2]||""
+                            naturaleza.push(item)
+                        }
+                        
+                       
+                    }
+            
+                    //oModel.setProperty("/naturaleza",aData);
+                    oModel.refresh(true);
+                    sap.m.MessageToast.show("Excel cargado correctamente");
+                }.bind(this);
+            
+                reader.readAsArrayBuffer(oFile);
+            }
