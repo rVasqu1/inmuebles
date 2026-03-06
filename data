@@ -1,49 +1,113 @@
-oFileUpload: function(oEvent) {
-                //Se lee el fichero
-                var oFile = oEvent.getParameter("files")[0];
-                if (!oFile) return;
-            
-                var reader = new FileReader();
-                reader.onload = function(e) {
-                    debugger
-                    var data = new Uint8Array(e.target.result);
-                    var workbook = XLSX.read(data, { type: "array" });
-                    var sheet = workbook.Sheets[workbook.SheetNames[0]];
-                    var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
-                    var aData = [];
-                    var oModel = this.getView().getModel("mapfresa");
-            
-                    function excelDateToJSDate(n){ return new Date(Math.round((n-25569)*86400*1000)); }
-            
-                    for(var i=0;i<rows.length;i++){
-                        // Se comrpueba si existe y si no es nuevo
-                        var naturaleza = oModel.getProperty("/naturaleza");
-                        var item = naturaleza[i];
-                        var row = rows[i];
-                        if(item){
-                            if(item.Id){
-                                item.SaknrLow= row[1]||"",
-                                item.SaknrHigh= row[2]||""
-                            }else{
-                                item.ClassId= row[0]||"",
-                                item.SaknrLow= row[1]||"",
-                                item.SaknrHigh= row[2]||""
-                            }
-                        }else{
-                            item = {};
-                            item.ClassId= row[0]||"",
-                            item.SaknrLow= row[1]||"",
-                            item.SaknrHigh= row[2]||""
-                            naturaleza.push(item)
-                        }
-                        
-                       
+ onDownloadExcel: function () {
+                // Se obtiene la tabla
+                var oTable = this.byId("tableNaturaleza");
+                // Se obtiene el binding de sus filas
+                var oBinding = oTable.getBinding("rows");
+                // Se obtiene los contexto de cada fila
+                var aContexts = oBinding.getContexts();
+                //Se comprueba si tamaño del array de contextos es distinto a 0
+                if (!aContexts.length) {
+                    sap.m.MessageToast.show("No hay datos para exportar");
+                    return;
+                }
+                //Recorriendo los contextos para obtener los datos
+                var aData = aContexts.map(function (oContext) {
+                    return oContext.getObject();
+                });
+                // Array de columnas
+                var aColumns = [];
+                // Recorremos las columnas
+                oTable.getColumns().forEach(function (oColumn) {
+                    //Se obtiene el label
+                    var oLabel = oColumn.getLabel();
+                    // En caso que exista el label, se trae su texto, si no vacío
+                    var sLabel = oLabel ? oLabel.getText() : "";
+                    //Como se agrega el valor por sort o filter, identificamos la propiedad
+                    var sProperty = oColumn.getSortProperty() || oColumn.getFilterProperty() ||   "";
+
+                    if (!sProperty) {
+                        return;
                     }
-            
-                    //oModel.setProperty("/naturaleza",aData);
-                    oModel.refresh(true);
-                    sap.m.MessageToast.show("Excel cargado correctamente");
-                }.bind(this);
-            
-                reader.readAsArrayBuffer(oFile);
-            }
+
+                    aColumns.push({
+                        label: sLabel,
+                        property: sProperty,
+                        type: sap.ui.export.EdmType.String
+                    });
+
+                });
+
+                var aFormattedData = aData.map(function (oItem) {
+
+                    var oRow = {};
+
+                    aColumns.forEach(function (oCol) {
+
+                        var vValue = oItem[oCol.property];
+
+                        if (vValue instanceof Date) {
+
+                            vValue =
+                                vValue.getDate().toString().padStart(2, "0") + "/" +
+                                (vValue.getMonth() + 1).toString().padStart(2, "0") + "/" +
+                                vValue.getFullYear();
+
+                        }
+
+                        else if (oCol.property === "ExecutionHour") {
+
+                            if (vValue && typeof vValue === "object" && vValue.ms !== undefined) {
+
+                                var totalSeconds = Math.floor(vValue.ms / 1000);
+
+                                var h = Math.floor(totalSeconds / 3600);
+                                var m = Math.floor((totalSeconds % 3600) / 60);
+                                var s = totalSeconds % 60;
+
+                                vValue =
+                                    h.toString().padStart(2, "0") + ":" +
+                                    m.toString().padStart(2, "0") + ":" +
+                                    s.toString().padStart(2, "0");
+                            }
+
+                            else if (typeof vValue === "string") {
+
+                                var matches = vValue.match(/PT(\d+)H(\d+)M(\d+)S/);
+
+                                if (matches) {
+                                    vValue =
+                                        matches[1].padStart(2, "0") + ":" +
+                                        matches[2].padStart(2, "0") + ":" +
+                                        matches[3].padStart(2, "0");
+                                }
+                            }
+                        }
+
+                        if (vValue === null || vValue === undefined) {
+                            vValue = "";
+                        }
+
+                        oRow[oCol.property] = vValue;
+
+                    });
+
+                    return oRow;
+
+                });
+                // Se crea la configuracion del excel
+                var oSettings = {
+                    workbook: {
+                        columns: aColumns
+                    },
+                    dataSource: aFormattedData,
+                    fileName: this.oResourceBundle.getText("nombreExcel") + ".xlsx",
+                    worker: false
+                };
+                //Se genera un excel
+                var oSheet = new sap.ui.export.Spreadsheet(oSettings);
+                //Se descarga el excel
+                oSheet.build().finally(function () {
+                    oSheet.destroy();
+                });
+
+            },
