@@ -1,11 +1,69 @@
-function excelDateToJSDate(serial) {
-    var utc_days  = Math.floor(serial - 25569);
-    var utc_value = utc_days * 86400;
-    var date_info = new Date(utc_value * 1000);
+ oFileUpload: function (oEvent) {
+                //Se lee el fichero
+                var oFile = oEvent.getParameter("files")[0];
+                if (!oFile) return;
+                //Funcion base para leer archivo
+                var reader = new FileReader();
+                reader.onload = function (e) {
+                    var data = new Uint8Array(e.target.result);
+                    var workbook = XLSX.read(data, { type: "array" });
+                    var sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
+                    var aData = [];
+                    //Se crea variable para obtener el modelo 
+                    var oModel = this.getView().getModel("mapfresa");
+                     // Se comrpueba si existe y si no es nuevo
+                    for (var i = 0; i < rows.length; i++) {
+                        //Se obiente la propriedad 
+                        var naturaleza = oModel.getProperty("/naturaleza");
+                        //Creando variable para obtener la propriedad
+                        var item = naturaleza[i];
+                        var row = rows[i];
+                        //si la fila está vacia, no devuelve nada
+                        if (row.length !== 0) {
+                            //Creando condición de cada propriedad
+                            if (item) {
+                                //Condicion para traer Id de tipo String
+                                if (!item.Id) {
+                                    
+                                    item.ClassId = row[0].toString() || "";
+                                }
+                                //Traer los datos a la Tabla
+                                item.SaknrLow = row[1] ? row[1].toString() : "";
+                                this.getView().getModel().setProperty(item._pathSmarfield + "/SaknrLow", row[1] ? row[1].toString() : "");
+                                item.SaknrHigh = row[2] ? row[2].toString() : "";
+                                this.getView().getModel().setProperty(item._pathSmarfield + "/SaknrHigh", row[2] ? row[2].toString() : "");
+                                //Le pasamos la función para el formato correcto de las fechas
+                                item.DateLow = this.excelDateToJSDate(row[3]) || null;
+                                item.DateHigh = this.excelDateToJSDate(row[4]) || null;
+                            } else {
+                                //Traer los datos desde el metadata
+                                var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
+                                    properties: {
+                                        Zsociedad: '0004',
+                                        SaknrLow: row[1] ? row[1].toString() : "",
+                                        SaknrHigh: row[2] ? row[2].toString() : "",
+                                    }
+                                })
+                                item = {
+                                    _pathSmarfield: oContextNat.getPath()
+                                };
+                                debugger;
+                                item.ClassId = row[0] ? row[0].toString() : "";
+                                item.SaknrLow = row[1] ? row[1].toString() : "",
+                                    item.SaknrHigh = row[2] ? row[2].toString() : "";
+                                    item.DateLow = this.excelDateToJSDate(row[3]) || null;
+                                    item.DateHigh = this.excelDateToJSDate(row[4]) || null;
 
-    return new Date(
-        date_info.getFullYear(),
-        date_info.getMonth(),
-        date_info.getDate()
-    );
-}
+                                naturaleza.push(item);
+                                item._numerico = naturaleza.length;
+                            }
+                        }
+                    }
+                    oModel.setProperty("/naturaleza", naturaleza);
+                    oModel.refresh(true);
+                    sap.m.MessageToast.show("Excel cargado correctamente");
+                }.bind(this);
+
+                reader.readAsArrayBuffer(oFile);
+            }
