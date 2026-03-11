@@ -1,19 +1,171 @@
-Hola Renzo,
-
-Una cosa, para dar de alta a tu gestoría como proveedor de PwC y poderles contratar, necesitaría que me mandaran la siguiente información:
--Nombre
--Dirección-Código Postal
--Ciudad-
-Provincia
--País
--Teléfono
--Mail-
--Contacto Principal
--CIF / DNI 
-
-Y también lo siguiente:
-- Quiénes son los socios actuales de la compañía. (nombre y apellidos, DNI)
--Certificado de la compañía estar al corriente con Hacienda
--Certificado de la compañía de estar al corriente de pago con la Seguridad Social.
-
-Creo que eso es todo... Pero de momento, si me puedes pasar eso, adelanto trabajo...
+{
+    "catalog": {
+        "models": [
+            {
+                "orden": "1",
+                "descripcion": "Seguridad y medio ambiente",
+                "descrIng": "Security and environment services",
+                "fechaRegistro": "18/07/2025",
+                "horaRegistro": "9:00:35",
+                "usuarioRegistro": "RVASQU1"
+            },
+            {
+                "orden": "2",
+                "descripcion": "Seguridad y medio ambiente",
+                "descrIng": "Security and environment services",
+                "fechaRegistro": "18/07/2025",
+                "horaRegistro": "9:00:35",
+                "usuarioRegistro": "RVASQU1"
+            },
+            {
+                "orden": "3",
+                "descripcion": "Seguridad y medio ambiente",
+                "descrIng": "Security and environment services",
+                "fechaRegistro": "18/07/2025",
+                "horaRegistro": "9:00:35",
+                "usuarioRegistro": "RVASQU1"
+            },
+            {
+                "orden": "4",
+                "descripcion": "Seguridad y medio ambiente",
+                "descrIng": "Security and environment services",
+                "fechaRegistro": "18/07/2025",
+                "horaRegistro": "9:00:35",
+                "usuarioRegistro": "RVASQU1"
+            },
+            {
+                "orden": "5",
+                "descripcion": "Seguridad y medio ambiente",
+                "descrIng": "Security and environment services",
+                "fechaRegistro": "18/07/2025",
+                "horaRegistro": "9:00:35",
+                "usuarioRegistro": "RVASQU1"
+            },
+            {
+                "orden": "6",
+                "descripcion": "Seguridad y medio ambiente",
+                "descrIng": "Security and environment services",
+                "fechaRegistro": "18/07/2025",
+                "horaRegistro": "9:00:35",
+                "usuarioRegistro": "RVASQU1"
+            },
+            {
+                "orden": "7",
+                "descripcion": "Seguridad y medio ambiente",
+                "descrIng": "Security and environment services",
+                "fechaRegistro": "18/07/2025",
+                "horaRegistro": "9:00:35",
+                "usuarioRegistro": "RVASQU1"
+            },
+            {
+                "orden": "8",
+                "descripcion": "Seguridad y medio ambiente",
+                "descrIng": "Security and environment services",
+                "fechaRegistro": "18/07/2025",
+                "horaRegistro": "9:00:35",
+                "usuarioRegistro": "RVASQU1"
+            },
+            {
+                "orden": "9",
+                "descripcion": "Seguridad y medio ambiente",
+                "descrIng": "Security and environment services",
+                "fechaRegistro": "18/07/2025",
+                "horaRegistro": "9:00:35",
+                "usuarioRegistro": "RVASQU1"
+            },
+            {
+                "orden": "11",
+                "descripcion": "Seguridad y medio ambiente",
+                "descrIng": "Security and environment services",
+                "fechaRegistro": "18/07/2025",
+                "horaRegistro": "9:00:35",
+                "usuarioRegistro": "RVASQU1"
+            },
+            {
+                "orden": "12",
+                "descripcion": "Seguridad y medio ambiente",
+                "descrIng": "Security and environment services",
+                "fechaRegistro": "18/07/2025",
+                "horaRegistro": "9:00:35",
+                "usuarioRegistro": "RVASQU1"
+            },
+            {
+                "orden": "13",
+                "descripcion": "Seguridad y medio ambiente",
+                "descrIng": "Security and environment services",
+                "fechaRegistro": "18/07/2025",
+                "horaRegistro": "9:00:35",
+                "usuarioRegistro": "RVASQU1"
+            },
+            {
+                "orden": "14",
+                "descripcion": "Seguridad y medio ambiente",
+                "descrIng": "Security and environment services",
+                "fechaRegistro": "18/07/2025",
+                "horaRegistro": "9:00:35",
+                "usuarioRegistro": "RVASQU1"
+            },
+            {
+                "orden": "15",
+                "descripcion": "Seguridad y medio ambiente",
+                "descrIng": "Security and environment services",
+                "fechaRegistro": "18/07/2025",
+                "horaRegistro": "9:00:35",
+                "usuarioRegistro": "RVASQU1"
+            },
+            {
+                "orden": "16",
+                "descripcion": "Seguridad y medio ambiente",
+                "descrIng": "Security and environment services",
+                "fechaRegistro": "18/07/2025",
+                "horaRegistro": "9:00:35",
+                "usuarioRegistro": "RVASQU1"
+            },
+            {
+                "orden": "17",
+                "descripcion": "Seguridad y medio ambiente",
+                "descrIng": "Security and environment services",
+                "fechaRegistro": "18/07/2025",
+                "horaRegistro": "9:00:35",
+                "usuarioRegistro": "RVASQU1"
+            },
+            {
+                "orden": "18",
+                "descripcion": "Seguridad y medio ambiente",
+                "descrIng": "Security and environment services",
+                "fechaRegistro": "18/07/2025",
+                "horaRegistro": "9:00:35",
+                "usuarioRegistro": "RVASQU1"
+            },
+            {
+                "orden": "19",
+                "descripcion": "Seguridad y medio ambiente",
+                "descrIng": "Security and environment services",
+                "fechaRegistro": "18/07/2025",
+                "horaRegistro": "9:00:35",
+                "usuarioRegistro": "RVASQU1"
+            },
+            {
+                "orden": "20",
+                "descripcion": "Seguridad y medio ambiente",
+                "descrIng": "Security and environment services",
+                "fechaRegistro": "18/07/2025",
+                "horaRegistro": "9:00:35",
+                "usuarioRegistro": "RVASQU1"
+            }
+        ]
+    },
+    "catalogCeco": [
+        {
+            "num": "1",
+            "ceco": "9987",
+            "dedicacion": "100%",
+            "tipologia": "",
+            "desde": "05/01/2015",
+            "hasta": "05/01/2015",
+            "fechaRegistro": "09/03/2026",
+            "horaRegistro": "12:17:50",
+            "usuarioRegistro": "RVASQU1"
+        }
+    ]
+}
