@@ -1,3 +1,82 @@
-var oModel = this.getOwnerComponent().getModel("tipologiaCeco");
-            var aData = oModel.getProperty("/catalog/models/");
-            console.log(aData)
+<t:Table rows="{tipologiaCeco>/catalogCeco}"> 
+                    <t:extension>
+                    <OverflowToolbar>
+                    <ToolbarSpacer/>
+                        <Button press= "dowloadExcelCeco"
+                                icon="sap-icon://download"/>
+                        <unified:FileUploader id="UploadCeco" 
+                                              buttonOnly="true" 
+                                              icon="sap-icon://upload" 
+                                              change="fileUploadCeco" 
+                                              buttonText=" "
+                                              fileType="xlsx" 
+                                              sameFilenameAllowed="true" />		
+						<Button icon="sap-icon://add"
+							    press="onAddRowCeco"/>
+                        <Button icon="sap-icon://copy"
+							    press="onCopyRowCeco"/>
+						<Button icon="sap-icon://delete"
+							    press="onDeleteRowCeco"/>
+                    </OverflowToolbar>
+                    </t:extension>
+                    <t:columns>
+
+                        <t:Column autoResizable="true"
+						           width="4rem">
+                            <Label text="" />
+                                <t:template>
+                                    <Text text="{tipologiaCeco>num}"/>
+                                </t:template>
+                        </t:Column>
+
+                        <t:Column autoResizable="true"
+                                  width="6rem">
+                            <Label text="{i18n>ceco}" required="true" />
+                                <t:template>
+                                    <Input value="{tipologiaCeco>ceco}" textAlign="End"/>
+                                </t:template>
+                        </t:Column>
+
+                        <t:Column width="7rem"
+                                  autoResizable="true">
+                            <Label text="{i18n>dedicacion}" required="true"/>
+                                <t:template>
+                                   <Input value="{tipologiaCeco>dedicacion}" textAlign="End"/>
+                                </t:template>
+                        </t:Column>
+
+                        <t:Column autoResizable="true"
+                                  width="15rem">
+                                  <Label text="{i18n>tipologia}" required="true"/>
+                                   <t:template>
+                                   
+                                  <Select width="100%"
+					forceSelection="false"
+					selectedKey="{tipologiaCeco>tipologia}"
+						items="{tipologiaCeco>/catalog/models}">
+					<core:Item key="{tipologiaCeco>orden}" text="{tipologiaCeco>descripcion}" />
+				</Select>
+                  </t:template>
+                        </t:Column>
+          "orden": "18",
+                "descripcion": "INNOVACIÓN",
+                "descrIng": "Security and environment services",
+                "fechaRegistro": "18/07/2025",
+                "horaRegistro": "9:00:35",
+                "usuarioRegistro": "RVASQU1"
+            }
+        ]
+    },
+    "catalogCeco": [
+        {
+            "num": "1",
+            "ceco": "9987",
+            "dedicacion": "100%",
+            "tipologia": "SEGURIDAD Y MEDIO AMBIENTE",
+            "desde": "05/01/2015",
+            "hasta": "05/01/2015",
+            "fechaRegistro": "09/03/2026",
+            "horaRegistro": "12:17:50",
+            "usuarioRegistro": "RVASQU1"
+        },
+        {
