@@ -1,13 +1,16 @@
-sap.ui.define([
-    "sap/ui/core/mvc/Controller"
-], (Controller) => {
-    "use strict";
-
-    return Controller.extend("mapfre.controller.Main", {
-        onInit() {
-            var oModel = this.getOwnerComponent().getModel("tipologiaCeco");
-            var aData = oModel.getProperty("/catalog/models");
-            console.log(aData)
-        }
-    });
-});
+onDeleteRowTipoNat: function () {
+            var tableTpoNat = this.getView().byId("tableTipologiaFees");
+            var aIndex = tableTpoNat.getSelectedIndices();
+            var oModel = this.getView().getModel("tipologiaCeco");
+            var sProperty = oModel.getProperty("/catalogTipologiaFees");
+            var  dDelete = []
+            for ( var i in sProperty) {
+                if (aIndex.filter((index)=> index == i).length >0) {
+                    if (sProperty[i]){
+                        sProperty.push(sProperty[i])}
+                } else {
+                    dDelete.push(sProperty[i]);
+                }
+            }
+        this.getView().getModel("tipologiaCeco").setProperty("/catalogTipologiaFees", dDelete);
+        },
