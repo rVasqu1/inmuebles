@@ -1,16 +1,18 @@
-onDeleteRowTipoNat: function () {
-            var tableTpoNat = this.getView().byId("tableTipologiaFees");
-            var aIndex = tableTpoNat.getSelectedIndices();
-            var oModel = this.getView().getModel("tipologiaCeco");
-            var sProperty = oModel.getProperty("/catalogTipologiaFees");
-            var  dDelete = []
-            for ( var i in sProperty) {
-                if (aIndex.filter((index)=> index == i).length >0) {
-                    if (sProperty[i]){
-                        sProperty.push(sProperty[i])}
-                } else {
-                    dDelete.push(sProperty[i]);
-                }
+ return Controller.extend("mapfre.controller.Main", {
+        onInit() {
+            var aData= this.getView().getModel("tipologiaCeco").getProperty("/catalogCeco");
+            for (var i = 0;i < aData.length; i++){
+                aData[i].numero = i + 1;
             }
-        this.getView().getModel("tipologiaCeco").setProperty("/catalogTipologiaFees", dDelete);
+            this.getView().getModel("tipologiaCeco").setProperty("/catalogCeco", aData);
+        },
+    
+        onAddRowCeco:function () {
+            var oModel = this.getOwnerComponent().getModel("tipologiaCeco");
+            var aRows = oModel.getProperty("/catalogCeco");
+            var oNewRow = {
+            };
+            aRows.push(oNewRow);
+            oNewRow.num = aRows.length;
+            oModel.setProperty("/catalogCeco", aRows);
         },
