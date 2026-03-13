@@ -1,18 +1,14 @@
- return Controller.extend("mapfre.controller.Main", {
-        onInit() {
-            var aData= this.getView().getModel("tipologiaCeco").getProperty("/catalogCeco");
-            for (var i = 0;i < aData.length; i++){
-                aData[i].numero = i + 1;
-            }
-            this.getView().getModel("tipologiaCeco").setProperty("/catalogCeco", aData);
-        },
-    
-        onAddRowCeco:function () {
-            var oModel = this.getOwnerComponent().getModel("tipologiaCeco");
-            var aRows = oModel.getProperty("/catalogCeco");
-            var oNewRow = {
-            };
-            aRows.push(oNewRow);
-            oNewRow.num = aRows.length;
-            oModel.setProperty("/catalogCeco", aRows);
-        },
+ var oModel = this.getOwnerComponent().getModel("tipologiaCeco");
+
+    if (!oModel) {
+        console.log("Model tipologiaCeco non trovato");
+        return;
+    }
+
+    var aData = oModel.getProperty("/catalogCeco");
+
+    for (var i = 0; i < aData.length; i++) {
+        aData[i].numero = i + 1;
+    }
+
+    oModel.setProperty("/catalogCeco", aData);
