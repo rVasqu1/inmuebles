@@ -1,10 +1,14 @@
- this.getView().getModel().read("/ZCMSD_FACT_CECOT",{
-                success: function (odata) {
-                    for (var i in odata.results) {
-                        this.getView().getModel().createEntry("/ZCMSD_FACT_CECOT")
-                        odata.results[i].numero = (parseInt(i) + 1);
-                        
-                    }
-                    this.getView().getModel("tipologiaCeco").setProperty("/catalogTipoCeco", odata.results);
-                }.bind(this)
-            });
+  },
+        "models": {
+            "i18n": {
+                "type": "sap.ui.model.resource.ResourceModel",
+                "settings": {
+                    "bundleName": "mapfresa.table.i18n.i18n"
+                }
+            },
+            "modeloDatos": {
+                "type": "sap.ui.model.json.JSONModel",
+                "uri": "model/Datos.json"
+              }
+        },
+        "resources": 
