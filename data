@@ -1,14 +1,101 @@
-  },
-        "models": {
-            "i18n": {
-                "type": "sap.ui.model.resource.ResourceModel",
-                "settings": {
-                    "bundleName": "mapfresa.table.i18n.i18n"
-                }
-            },
-            "modeloDatos": {
-                "type": "sap.ui.model.json.JSONModel",
-                "uri": "model/Datos.json"
-              }
+<core:FragmentDefinition xmlns="sap.m" xmlns:core="sap.ui.core">
+
+    <Dialog id="idDialog" title="{i18n>seleccion}" contentWidth="30%" contentHeight="32%">
+        <content>
+            <VBox class="sapUiSmallMargin">
+                <Label text="{i18n>proceso}" required="true"/>
+                <Select width="100%" selectedKey="{modeloDatos>/select}" 
+                required="true">
+                <items>
+                <core:Item key="0" text="{i18n>facturacion}"/>
+                <core:Item key="1" text="{i18n>rectificaciónBiRege}"/>
+                <core:Item key="2" text="{i18n>rectificaciónImpFac}"/>
+                <core:Item key="3" text="{i18n>rectificaciónDestin}"/>
+                <core:Item key="4" text="{i18n>rectificaciónVolum}"/>
+                <core:Item key="5" text="{i18n>regularización}"/>
+                </items>
+                </Select>
+                <Label text="{i18n>periodo}" required="true"/>
+                <Input value="{fragment>/mese}" valueState="{fragment>/meseState}" required="true"/>
+                <Label text="{i18n>año}" required="true"/>
+                <Input id="inputYear" value="{fragment>anno}" required="true"/>
+                <Label text="{i18n>sociedademisora}" required="true"/>
+                <Input value="{fragment>campo3}"  required="true"/>
+                <Label text="{i18n>sociedadreceptora}" required="true"/>
+                <Input value="{fragment>campo4}"  required="true"/>
+            </VBox>
+        </content>
+        <beginButton>
+            <Button text="{i18n>continuar}" press="onNavPage"/>
+        </beginButton>
+        <endButton>
+            <Button  text="{i18n>cancelar}" press="onCancelDialog"/>
+        </endButton>
+    </Dialog>
+</core:FragmentDefinition>
+sap.ui.define([
+    "sap/ui/core/UIComponent",
+    "mapfresa/table/model/models",
+    "sap/ui/core/Fragment"
+], (UIComponent, models, Fragment) => {
+    "use strict";
+
+    return UIComponent.extend("mapfresa.table.Component", {
+        metadata: {
+            manifest: "json",
+            interfaces: [
+                "sap.ui.core.IAsyncContentCreation"
+            ]
         },
-        "resources": 
+
+        init() {
+            // call the base component's init function
+            UIComponent.prototype.init.apply(this, arguments);
+
+            // set the device model
+            this.setModel(models.createDeviceModel(), "device");
+
+            // // enable routing
+            // this.getRouter().initialize();
+            this.openInitialDialog();
+
+        },
+        openInitialDialog: function () {
+            Fragment.load({
+                name: "mapfresa.table.fragments.openFragment",
+                id:"idDialog",
+                controller: this
+            }).then(function(oDialog) {
+                this._oDialog = oDialog;
+                oDialog.setModel(this.getModel("i18n"),"i18n");
+                oDialog.setModel(this.getModel("modeloDatos"),"modeloDatos");
+                oDialog.open();
+            }.bind(this));
+        },
+        onCancelDialog: function () {
+                this._oDialog.close();
+                this.getRouter().initialize();
+
+        },
+        onNavPage: function () {
+
+            var oModel = this._oDialog.getModel("modeloDatos");
+            var oData = oModel.getData();
+
+            var bValid = true;
+            var iYear = new Date ().getFullYear();
+
+            if (!oData.mese || oData.mese < 1 || oData.mese >12) {
+                oModel.setProperty ("/meseState", "Error");
+                bValid= false;
+            } else {
+                oModel.setProperty("/meseState", "None");
+            }
+       
+           if (!bValid) return;
+           this._oDialog.close();
+           this.getRouter().initialize();
+
+    }
+    });
+});
