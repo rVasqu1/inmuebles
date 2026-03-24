@@ -1,167 +1,29 @@
-sap.ui.define([
-    "sap/ui/core/UIComponent",
-    "mapfresa/table/model/models",
-    "sap/ui/core/Fragment"
-], (UIComponent, models, Fragment) => {
-    "use strict";
-
-    return UIComponent.extend("mapfresa.table.Component", {
-        metadata: {
-            manifest: "json",
-            interfaces: [
-                "sap.ui.core.IAsyncContentCreation"
-            ]
-        },
-
-        init() {
-            // call the base component's init function
-            UIComponent.prototype.init.apply(this, arguments);
-
-            // set the device model
-            this.setModel(models.createDeviceModel(), "device");
-
-            // // enable routing
-            // this.getRouter().initialize();
-            this.openInitialDialog();
-
-        },
-        /**
-         * Abre el dialogo inicial y asigna los modelos
-         */
-        openInitialDialog: function () {
-            Fragment.load({
-                name: "mapfresa.table.fragments.openFragment",
-                id: "idDialog",
-                controller: this
-            }).then(function (oDialog) {
-                this._oDialog = oDialog;
-                oDialog.setModel(this.getModel("i18n"), "i18n");
-                oDialog.setModel(this.getModel("modeloDatos"), "modeloDatos");
-                oDialog.open();
-            }.bind(this));
-        },
-        /**
-         * Cierra el dialogo sin guardar cambios
-         */
-        onCancelDialog: function () {
-            this._oDialog.close();
-            this.getRouter().initialize();
-
-        },
-        /**
-         * Valida todos los campos y, si son correctos, navega a la página principal
-         */
-        onNavPage: function () {
-
-            var oModel = this._oDialog.getModel("modeloDatos");
-            var oData = oModel.getData();
-
-            var bValid = true;
-            var iYear = new Date().getFullYear();
-
-            if (!oData.mes || oData.mes < 1 || oData.mes > 12) {
-                oModel.setProperty("/mesState", "Error");
-                bValid = false;
-            } else {
-                oModel.setProperty("/mesState", "None");
-            }
-
-            if (!oData.year || oData.year < 1900 || oData.year > iYear) {
-                oModel.setProperty("/yearState", "Error");
-                bValid = false;
-            } else {
-                oModel.setProperty("/yearState", "None");
-            }
-
-            if (!oData.select) {
-                oModel.setProperty("/selectState", "Error");
-                bValid = false;
-            } else {
-                oModel.setProperty("/selectState", "None");
-            }
-
-            ["campo3", "campo4"].forEach(function (sField) {
-                if (!oData[sField]) {
-                    oModel.setProperty("/" + sField + "State", "Error");
-                    bValid = false;
-                } else {
-                    oModel.setProperty("/" + sField + "State", "None");
+  "routes": [
+                {
+                    "name": "RouteMain",
+                    "pattern": "",
+                    "target": [
+                        "TargetMain"
+                    ]
+                }, 
+                {
+                    "name":"RouteTabla",
+                    "pattern":"",
+                    "target":[
+                        "TargetTable"
+                    ]
                 }
-            })
-
-            if (bValid === false) {
-                sap.m.MessageToast.show(this.getModel("i18n").getResourceBundle().getText("errorCompilar"));
-                return;
-            }
-            this._oDialog.close();
-
-            if(oData.select === "0")
-                this.getRouter().initialize().navTo("RouteMain");
-            else if (oData.select === "1") 
-                this.getRouter().initialize().navTo("RouteTabla");
-        },
-        /**
-         * Valida que el valor sea un mes valido (1-12)
-         */
-        onOnlyNumber: function (oEvent) {
-
-            var oModel = this._oDialog.getModel("modeloDatos");
-            var sValue = oEvent.getParameter("value");
-            var sClean = sValue.replace(/[^0-9]/g, "").slice(0, 2);
-
-            oEvent.getSource().setValue(sClean);
-            oModel.setProperty("/mes", sClean);
-            var imes = Number(sClean);
-
-            if (sClean === "" || imes < 1 || imes > 12) {
-                oModel.setProperty("/mesState", "Error");
-            } else {
-                oModel.setProperty("/mesState", "None");
+            ],
+            "targets": {
+                "TargetMain": {
+                    "id": "Main",
+                    "name": "Main"
+                },
+                "TargetTable": {
+                    "id": "RouteTabla",
+                    "name": "RouteTabla"
+                }
             }
         },
-        /**
-         * Valida que el valor esté entre 1990 y el año actual
-         */
-
-        onOnlyDate: function (oEvent) {
-            var oModel = this._oDialog.getModel("modeloDatos");
-            var sValue = oEvent.getParameter("value");
-            var iYear = new Date().getFullYear();
-            var sClean = sValue.replace(/[^0-9]/g, "").slice(0, 4);
-
-            oEvent.getSource().setValue(sClean);
-            oModel.setProperty("/year", sClean);
-            var iyear = Number(sClean);
-
-            if (sClean === "" || iyear < 1900 || iyear > iYear) {
-                oModel.setProperty("/yearState", "Error");
-            } else {
-                oModel.setProperty("/yearState", "None");
-            }
-        },
-        /**
-         * Comprueba que el select y los inputs de texto tengan valor antes de continuar
-         */
-
-        onValidateField: function (oEvent) {
-
-            var oSource = oEvent.getSource();
-            var oModel = this._oDialog.getModel("modeloDatos");
-
-            var sPath;
-            var sValue;
-            if (oSource.isA("sap.m.Select")) {
-                sPath = "select";
-                sValue = oSource.getSelectedKey();
-            }
-            else {
-                sPath = oSource.getBinding("value").getPath();
-                sValue = oSource.getValue();
-            }
-
-            var bError = !sValue || sValue.toString().trim() === "";
-
-            oModel.setProperty("/" + sPath + "State", bError ? "Error" : "None");
-        } 
-    });
-});
+        "rootView": {
+            "viewName": "mapfresa.table.v
