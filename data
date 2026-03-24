@@ -1,18 +1,26 @@
- onOnlyNumber: function (oEvent) {
+onOnlyNumber: function (oEvent) {
 
         var oModel= this._oDialog.getModel("modeloDatos");
-        var oData = oModel.getData();
         var sValue = oEvent.getParameter("value");
-        var sClean = sValue.replace(/[^0-9]/g,"");
+        var iYear = new Date ().getFullYear();
+        var sClean = sValue.replace(/[^0-9]/g,"").slice(0,2)
+        var aClean = sValue.replace(/[^0-9]/g,"").slice(0,4)
 
-        if (!oData.mese || oData.mese < 1 || oData.mese >12) {
-            oModel.setProperty ("/meseState", "Error");
-            bValid= false;
+        oEvent.getSource().setValue(sClean);
+        oModel.setProperty("/mese", sClean);
+        oModel.setProperty("/anno", aClean);
+        var iMese = Number(sClean);
+        var iAnno = Number(aClean);
+
+        if (sClean === ""|| iMese < 1 || iMese> 12){
+            oModel.setProperty("/meseState","Error");
         } else {
-            oModel.setProperty("/meseState", "Success");
-            bValid= false;
+            oModel.setProperty("/meseState","None");
         }
 
-        sClean = sClean.slice(0,4);
-        oEvent.getSource().setValue(sClean);
+        if (aClean === ""|| iAnno < 1900 || iAnno > iYear){
+            oModel.setProperty("/annoState","Error");
+        } else {
+            oModel.setProperty("/annoState","None");
+        }
     }
