@@ -1,34 +1,23 @@
-onNumberChange: function (oEvent) {
+onValidateField: function (oEvent) {
 
-    var oInput = oEvent.getSource();
+    var oSource = oEvent.getSource();
     var oModel = this._oDialog.getModel("modeloDatos");
 
-    var sPath = oInput.getBinding("value").getPath();
-    var sValue = oEvent.getParameter("value");
+    var sPath;
+    var sValue;
 
-    var sClean = sValue.replace(/[^0-9]/g, "");
-
-    oInput.setValue(sClean);
-    oModel.setProperty("/" + sPath, sClean);
-
-    var iValue = Number(sClean);
-
-    // 🔥 prendo regole dalla VIEW
-    var iMin = Number(oInput.data("min"));
-    var iMax = oInput.data("max");
-
-    // 👉 se max non c'è → anno corrente
-    if (!iMax) {
-        iMax = new Date().getFullYear();
-    } else {
-        iMax = Number(iMax);
+    // 🔹 SELECT
+    if (oSource.isA("sap.m.Select")) {
+        sPath = "select";
+        sValue = oSource.getSelectedKey();
+    } 
+    // 🔹 INPUT
+    else {
+        sPath = oSource.getBinding("value").getPath();
+        sValue = oSource.getValue();
     }
 
-    var bError =
-        !sClean ||
-        isNaN(iValue) ||
-        (iMin && iValue < iMin) ||
-        (iMax && iValue > iMax);
+    var bError = !sValue || sValue.toString().trim() === "";
 
     oModel.setProperty("/" + sPath + "State", bError ? "Error" : "None");
 }
