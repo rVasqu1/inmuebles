@@ -1,105 +1,34 @@
- onNavPage: function () {
+onNumberChange: function (oEvent) {
 
-            var oModel = this._oDialog.getModel("modeloDatos");
-            var oData = oModel.getData();
+    var oInput = oEvent.getSource();
+    var oModel = this._oDialog.getModel("modeloDatos");
 
-            var bValid = true;
-            var iYear = new Date().getFullYear();
+    var sPath = oInput.getBinding("value").getPath();
+    var sValue = oEvent.getParameter("value");
 
-            if (!oData.mese || oData.mese < 1 || oData.mese > 12) {
-                oModel.setProperty("/meseState", "Error");
-                bValid = false;
-            } else {
-                oModel.setProperty("/meseState", "None");
-            }
+    var sClean = sValue.replace(/[^0-9]/g, "");
 
-            if (!oData.anno || oData.anno < 1900 || oData.anno > iYear) {
-                oModel.setProperty("/annoState", "Error");
-                bValid = false;
-            } else {
-                oModel.setProperty("/annoState", "None");
-            }
+    oInput.setValue(sClean);
+    oModel.setProperty("/" + sPath, sClean);
 
-            if (!oData.select) {
-                oModel.setProperty("/selectState", "Error");
-                bValid = false;
-            } else {
-                oModel.setProperty("/selectState", "None");
-            }
+    var iValue = Number(sClean);
 
-            ["campo3", "campo4"].forEach(function (sField) {
-                if (!oData[sField]) {
-                    oModel.setProperty("/" + sField + "State", "Error");
-                    bValid = false;
-                } else {
-                    oModel.setProperty("/" + sField + "State", "None");
-                }
-            })
+    // 🔥 prendo regole dalla VIEW
+    var iMin = Number(oInput.data("min"));
+    var iMax = oInput.data("max");
 
-            if (bValid === false) {
-                return;
-            }
-            this._oDialog.close();
-            this.getRouter().initialize();
+    // 👉 se max non c'è → anno corrente
+    if (!iMax) {
+        iMax = new Date().getFullYear();
+    } else {
+        iMax = Number(iMax);
+    }
 
-        },
-        onOnlyNumber: function (oEvent) {
+    var bError =
+        !sClean ||
+        isNaN(iValue) ||
+        (iMin && iValue < iMin) ||
+        (iMax && iValue > iMax);
 
-            var oModel = this._oDialog.getModel("modeloDatos");
-            var sValue = oEvent.getParameter("value");
-            var sClean = sValue.replace(/[^0-9]/g, "").slice(0, 2);
-
-            oEvent.getSource().setValue(sClean);
-            oModel.setProperty("/mese", sClean);
-            var iMese = Number(sClean);
-
-            if (sClean === "" || iMese < 1 || iMese > 12) {
-                oModel.setProperty("/meseState", "Error");
-            } else {
-                oModel.setProperty("/meseState", "None");
-            }
-        },
-
-        onOnlyDate: function (oEvent) {
-            var oModel = this._oDialog.getModel("modeloDatos");
-            var sValue = oEvent.getParameter("value");
-            var iYear = new Date().getFullYear();
-            var sClean = sValue.replace(/[^0-9]/g, "").slice(0, 4);
-
-            oEvent.getSource().setValue(sClean);
-            oModel.setProperty("/anno", sClean);
-            var iAnno = Number(sClean);
-
-            if (sClean === "" || iAnno < 1900 || iAnno > iYear) {
-                oModel.setProperty("/annoState", "Error");
-            } else {
-                oModel.setProperty("/annoState", "None");
-            }
-        },
-
-        oOnlyInput: function (oEvent) {
-
-            var oInput = oEvent.getSource();
-            var oModel = this._oDialog.getModel("modeloDatos");
-
-            var sPath = oInput.getBinding("value").getPath();
-            var sValue = oInput.getValue();
-
-            if (!sValue || sValue.toString().trim() === "") {
-                oModel.setProperty("/" + sPath + "State", "Error");
-            } else {
-                oModel.setProperty("/" + sPath + "State", "None");
-            }
-
-        },
-        onSelectChange: function (oEvent) {
-            var oModel = this._oDialog.getModel("modeloDatos");
-
-            var sKey = oEvent.getParameter("selectedItem").getKey();
-
-            if (!sKey) {
-                oModel.setProperty("/selectState", "Error");
-            } else {
-                oModel.setProperty("/selectState", "None");
-            }
-        }
+    oModel.setProperty("/" + sPath + "State", bError ? "Error" : "None");
+}
