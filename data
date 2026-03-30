@@ -1,20 +1,2 @@
-             bValid = false;
-                } else {
-                    oModel.setProperty("/" + sField + "State", "None");
-                }
-            })
-
-            if (bValid === false) {
-                sap.m.MessageToast.show(this.getModel("i18n").getResourceBundle().getText("errorCompilar"));
-                return;
-            }
-            this._oDialog.close();
-
-            var oRouter = this.getRouter();
-
-            if(oData.select === "0")
-            oRouter.navTo("RouteMain");
-            else if (oData.select === "1") 
-            oRouter.navTo("RouteTable");
-        },
-        /**
+rrgsap@gmail.com
++34689487374
