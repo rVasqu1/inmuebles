@@ -1,90 +1,171 @@
-onDownloadExcelMarkup: function () {
-    var oTable = this.byId("tableMarkup");
-    var oBinding = oTable.getBinding("rows");
-    var aContexts = oBinding.getContexts();
-
-    if (!aContexts.length) {
-        sap.m.MessageToast.show("No hay datos para exportar");
-        return;
-    }
-
-    var aData = aContexts.map(function (oContext) {
-        return oContext.getObject();
-    });
-
-    var aColumns = [];
-
-    oTable.getColumns().forEach(function (oColumn) {
-        if (!oColumn.getVisible()) return;
-
-        var oLabel = oColumn.getLabel();
-        var sLabel = oLabel ? oLabel.getText() : "";
-        if (!sLabel) return;
-
-        var oTemplate = oColumn.getTemplate();
-        var sProperty = null;
-
-        if (oTemplate) {
-            // ✅ DatePicker usa "dateValue", Input/Text usano "value"/"text"
-            var oBindingInfo = oTemplate.getBindingInfo("dateValue") ||
-                               oTemplate.getBindingInfo("value") ||
-                               oTemplate.getBindingInfo("text");
-
-            if (oBindingInfo && oBindingInfo.parts && oBindingInfo.parts.length > 0) {
-                sProperty = oBindingInfo.parts[0].path;
-            }
-        }
-
-        if (!sProperty) return;
-
-        // ✅ Rileva le colonne date
-        if (sProperty === "DateHigh" || sProperty === "DateLow" || sProperty === "ExecutionDate") {
-            aColumns.push({ label: sLabel, property: sProperty, type: sap.ui.export.EdmType.Date });
-        } else {
-            aColumns.push({ label: sLabel, property: sProperty, type: sap.ui.export.EdmType.String });
-        }
-    });
-
-    if (!aColumns.length) {
-        sap.m.MessageToast.show("No hay columnas para exportar");
-        return;
-    }
-
-    var aFormattedData = aData.map(function (oItem) {
-        var oRow = {};
-        aColumns.forEach(function (oCol) {
-            var vValue = oItem[oCol.property];
-
-            if (oCol.property === "ExecutionHour") {
-                if (vValue && typeof vValue === "object" && vValue.ms !== undefined) {
-                    var totalSeconds = Math.floor(vValue.ms / 1000);
-                    var h = Math.floor(totalSeconds / 3600);
-                    var m = Math.floor((totalSeconds % 3600) / 60);
-                    var s = totalSeconds % 60;
-                    vValue = h.toString().padStart(2, "0") + ":" +
-                             m.toString().padStart(2, "0") + ":" +
-                             s.toString().padStart(2, "0");
-                }
-            }
-
-            if (vValue === null || vValue === undefined) {
-                vValue = "";
-            }
-
-            oRow[oCol.property] = vValue;
-        });
-        return oRow;
-    });
-
-    var oSettings = {
-        workbook: { columns: aColumns },
-        dataSource: aFormattedData,
-        fileName: this.oResourceBundle.getText("nombreExcel") + ".xlsx",
-        worker: false
-    };
-
-    var oSheet = new sap.ui.export.Spreadsheet(oSettings);
-    oSheet.build().finally(function () {
-        oSheet.destroy();
-    });
-},
+ oFileUploadTipoeco: function (oEvent) {
+                  //Se lee el fichero
+                  var oFile = oEvent.getParameter("files")[0];
+                  if (!oFile) return;
+                  //Funcion base para leer archivo
+                  var reader = new FileReader();
+                  reader.onload = function (e) {
+                      var data = new Uint8Array(e.target.result);
+                      var workbook = XLSX.read(data, { type: "array" });
+                      var sheet = workbook.Sheets[workbook.SheetNames[0]];
+                      var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
+                      var aData = [];
+                      //Se crea variable para obtener el modelo 
+                      var oModel = this.getView().getModel("mapfresa");
+                      // Se comrpueba si existe y si no es nuevo
+                      for (var i = 0; i < rows.length; i++) {
+                          //Se obiente la propriedad 
+                          var tipoCeco = oModel.getProperty("/tipoCeco");
+                          //Creando variable para obtener la propriedad
+                          var item = tipoCeco[i];
+                          var row = rows[i];
+                          //si la fila no está vacia, procesa
+                          if (row.length !== 0) {
+                              //Comprovar si el elemento existe en el modelo 
+                              if (item) {
+                                  //si no existe Id se asigna el valor de ClassId
+                                  if (!item.Id) {
+  
+                                      item.ClassId = row[0].toString() || "";
+                                  }
+                              } else {
+                                  //Si no existe se crea entrada para el oData
+                                  var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
+                                      properties: {
+                                          Zsociedad: '0004'
+                                      }
+                                  })
+                                  //se crea objecto local con el path contexto del oData
+                                  item = {
+                                      _pathSmarfield: oContextNat.getPath()
+                                  };
+                                  debugger;
+                                  //Se asignan los datos desde Excel
+                                  item.ClassId = row[0] ? row[0].toString() : "";
+                                  tipoCeco.push(item);
+                                  item._numerico = tipoCeco.length;
+                              }
+                          }
+                      }
+                      //Las propriedades se asignan en el modelo
+                      oModel.setProperty("/tipoCeco", tipoCeco);
+                      //Se actualiza el modelo
+                      oModel.refresh(true);
+                      //Se muestra un mensaje de carga correcta de los datos
+                      sap.m.MessageToast.show("Excel cargado correctamente");
+                      //Se bindea para reflejar datos en tabla
+                  }.bind(this);
+  
+                  reader.readAsArrayBuffer(oFile);
+            }, <IconTabFilter text="{i18n>tipologiaCeco}" key="tipoCeco">
+				<t:Table id="tableTipoCeco"	
+						rows="{path:'mapfresa>/tipoCeco'}" 
+						selectionMode="Multi"
+						visibleRowCountMode="Auto"
+						threshold="15"
+						scrollThreshold="50"
+						enableBusyIndicator="true">
+					<t:extension>
+					<OverflowToolbar style="Clear">						
+						<ToolbarSpacer/>
+						<!--  INI RJVS 10/04/2026 botones upload y download -->
+							<Button
+							press= "dowloadExceltipoCeco"
+							icon="sap-icon://download"
+							/>
+							<unified:FileUploader id="UploadtipoCeco" 
+							                      buttonOnly="true" 
+												  icon="sap-icon://upload" 
+												  change="oFileUploadTipoeco" 
+												  buttonText=" " 
+												  loadUrl="/dummy" 
+												  fileType="xlsx" 
+												  sameFilenameAllowed="true" />					
+						<!--  FIN RJVS 14/04/2026 botones upload y download -->
+						<Button
+							icon="sap-icon://add"
+							press="onAddRowTCeco" visible="{=${aux>/procesado} ? false : true}"/>
+                        <Button
+							icon="sap-icon://copy"
+							press="onCopyRowTCeco" visible="{=${aux>/procesado}? false : true}"/>
+							<Button
+							icon="sap-icon://delete"
+							press="onDeleteRowTCeco" visible="{=${aux>/procesado}? false : true}"/>
+					</OverflowToolbar>
+				</t:extension>
+				<t:columns>
+				<t:Column
+						autoResizable="true"
+						width="4rem">
+						<Label text="" />
+						<t:template>
+                            <Text text="{mapfresa>_numerico}"/>
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						width="5rem" visible="false">
+						<Label text="{i18n>id}" />
+						<t:template>
+                            <Text text="{path:'mapfresa>Id',formatter:'.formarIdTCeco'}"/>
+                        </t:template>
+					</t:Column>
+					<t:Column
+					filterProperty = "Orden"
+						sortProperty = "Orden"
+						autoResizable="true"
+						width="5rem"
+						>
+						<Label text="{i18n>orden}" />
+						<t:template>
+                            <Input value="{path:'mapfresa>Orden'}"/>
+                        </t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						width="20rem">
+						<Label text="{i18n>descripcion}"  required="true" />
+						<t:template>
+							<Input value="{mapfresa>Description}" fieldGroupIds="fgDescription" editable="{= ${mapfresa>Id}.indexOf('9') === 0 ? true : false}" change="onChangeDescrip" />
+						</t:template>
+					</t:Column>
+					<t:Column 
+						autoResizable="true"
+						width="20rem">
+						<Label text="{i18n>descripcionEng}" />
+						<t:template>
+                            <Input value="{mapfresa>DescriptionEng}" editable="{= ${mapfresa>Id}.indexOf('9') === 0 ? true : false}" />
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						width="9rem">
+						<Label text="{i18n>fechaRegistro}" />
+						<t:template>
+							<Text text="{path:'mapfresa>ExecutionDate', type:'sap.ui.model.type.Date', formatOptions:{
+								pattern:'dd/MM/yyyy'
+							}}" 
+									textAlign="End"  />
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						width="9rem">
+						<Label text="{i18n>horaRegistro}" />
+						<t:template>
+							<Text text="{path:'mapfresa>ExecutionHour', type:'sap.ui.model.odata.type.Time'}" 
+									textAlign="End" />
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						width="9rem">
+						<Label text="{i18n>usuarioRegistro}" />
+						<t:template>
+							<Text text="{path:'mapfresa>Userid'}" 
+									textAlign="End" />
+						</t:template>
+					</t:Column>
+				</t:columns>				
+			</t:Table>
+			</IconTabFilter> 
