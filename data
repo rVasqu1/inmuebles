@@ -1,64 +1,172 @@
-oFileUploadTipoeco: function (oEvent) {
-    var oFile = oEvent.getParameter("files")[0];
-    if (!oFile) return;
+   oFileUploadMarkup: function (oEvent) {
+                var oFile = oEvent.getParameter("files")[0];
+                if (!oFile) return;
+                //Funcion base para leer archivo
+                var reader = new FileReader();
+                reader.onload = function (e) {
+                    var data = new Uint8Array(e.target.result);
+                    var workbook = XLSX.read(data, { type: "array" });
+                    var sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
+                    var aData = [];
+                    //Se crea variable para obtener el modelo 
+                    var oModel = this.getView().getModel("mapfresa");
+                    // Se comrpueba si existe y si no es nuevo
+                    for (var i = 0; i < rows.length; i++) {
+                        //Se obiente la propriedad 
+                        var naturaleza = oModel.getProperty("/markup");
+                        //Creando variable para obtener la propriedad
+                        var item = naturaleza[i];
+                        var row = rows[i];
+                        //si la fila no está vacia, procesa
+                        if (row.length !== 0) {
+                            //Comprovar si el elemento existe en el modelo 
+                            if (item) {
+                                //si no existe Id se asigna el valor de ClassId
+                                if (!item.Id) {
 
-    var reader = new FileReader();
-    reader.onload = function (e) {
-        var data = new Uint8Array(e.target.result);
-        var workbook = XLSX.read(data, { type: "array" });
-        var sheet = workbook.Sheets[workbook.SheetNames[0]];
-        var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
-
-        var oModel = this.getView().getModel("mapfresa");
-        var tipoCeco = oModel.getProperty("/tipoCeco");
-
-        for (var i = 0; i < rows.length; i++) {
-            var row = rows[i];
-
-            // Salta righe vuote
-            if (!row || row.length === 0) continue;
-
-            // ✅ Le colonne del Excel in ordine (come appaiono nella tabella scaricata):
-            // [0]=Orden, [1]=Description, [2]=DescriptionEng, [3]=ExecutionDate, [4]=ExecutionHour, [5]=Userid
-            var sOrden          = row[0] ? row[0].toString() : "";
-            var sDescription    = row[1] ? row[1].toString() : "";
-            var sDescriptionEng = row[2] ? row[2].toString() : "";
-
-            // ✅ Cerca se esiste già una riga con stesso Orden nel modello
-            var oExisting = tipoCeco.find(function (t) {
-                return t.Orden === sOrden;
-            });
-
-            if (oExisting) {
-                // ✅ Aggiorna la riga esistente
-                oExisting.Orden          = sOrden;
-                oExisting.Description    = sDescription;
-                oExisting.DescriptionEng = sDescriptionEng;
-            } else {
-                // ✅ Crea nuova entry OData
-                var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
-                    properties: {
-                        Zsociedad: '0004'
+                                    item.Markup = row[0].toString() || "";
+                                }
+                                //Le pasamos la función para el formato correcto de las fechas para Javascript desde Excel
+                                item.DateLow = this.excelDateToJSDate(row[2]) || null;
+                                item.DateHigh = this.excelDateToJSDate(row[3]) || null;
+                            } else {
+                                //Si no existe se crea entrada para el oData
+                                var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
+                                    properties: {
+                                        Zsociedad: '0004'
+                                    }
+                                })
+                                //se crea objecto local con el path contexto del oData
+                                item = {
+                                    _pathSmarfield: oContextNat.getPath()
+                                };
+                                debugger;
+                                //Se asignan los datos desde Excel
+                                item.Markup = row[0] ? row[0].toString() : "";
+                                item.DateLow = this.excelDateToJSDate(row[2]) || null;
+                                item.DateHigh = this.excelDateToJSDate(row[3]) || null;
+                                // Se agrega el nuevo elemento en el array
+                                naturaleza.push(item);
+                                item._numerico = naturaleza.length;
+                            }
+                        }
                     }
-                });
+                    //Las propriedades se asignan en el modelo
+                    oModel.setProperty("/markup", naturaleza);
+                    //Se actualiza el modelo
+                    oModel.refresh(true);
+                    //Se muestra un mensaje de carga correcta de los datos
+                    sap.m.MessageToast.show("Excel cargado correctamente");
+                    //Se bindea para reflejar datos en tabla
+                }.bind(this);
 
-                var item = {
-                    _pathSmarfield:  oContextNat.getPath(),
-                    Orden:           sOrden,
-                    Description:     sDescription,
-                    DescriptionEng:  sDescriptionEng
-                };
+                reader.readAsArrayBuffer(oFile);
 
-                tipoCeco.push(item);
-                item._numerico = tipoCeco.length;
             }
-        }
-
-        oModel.setProperty("/tipoCeco", tipoCeco);
-        oModel.refresh(true);
-        sap.m.MessageToast.show("Excel cargado correctamente");
-
-    }.bind(this);
-
-    reader.readAsArrayBuffer(oFile);
-},
+<IconTabFilter text="{i18n>markup}" key="markup">
+				<t:Table id="tableMarkup"	
+						rows="{mapfresa>/markup}" 
+						selectionMode="Multi"
+						visibleRowCountMode="Auto"
+						threshold="15"
+						scrollThreshold="50"
+						enableBusyIndicator="true">
+					<t:extension>
+					<OverflowToolbar style="Clear">						
+						<ToolbarSpacer/>
+						<!--  INI RJVS 04/03/2026 botones upload y download -->
+							<Button
+							press= "onDownloadExcelMarkup"
+							icon="sap-icon://download"
+							/>
+							<unified:FileUploader id="FileUploadMarkup" 
+							                      buttonOnly="true" 
+												  icon="sap-icon://upload" 
+												  change="oFileUploadMarkup" 
+												  buttonText=" " 
+												  loadUrl="/dummy" 
+												  fileType="xlsx" 
+												  sameFilenameAllowed="true" />					
+						<!--  FIN RJVS 04/03/2026 botones upload y download -->
+						<Button
+							icon="sap-icon://add"
+							press="onAddRowMarkup" visible="{=${aux>/procesado} ? false : true}"/>
+                        <Button
+							icon="sap-icon://copy"
+							press="onCopyRowMarkup" visible="{=${aux>/procesado}? false : true}"/>
+							<Button
+							icon="sap-icon://delete"
+							press="onDeleteRowMarkup" visible="{=${aux>/procesado}? false : true}"/>
+					</OverflowToolbar>
+				</t:extension>
+				<t:columns>
+					<t:Column
+						autoResizable="true"
+						width="4rem">
+						<Label text="" />
+						<t:template>
+                            <Text text="{mapfresa>_numerico}"/>
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						width="12rem">
+						<Label text="{i18n>markup}" required="true" />
+						<t:template>
+                            <Input value="{ path: 'mapfresa>Markup', formatter: '.formatPorcentaje' }" fieldGroupIds="fgMarkup"
+                                   textAlign="End" change=".onChangeMarkup"/>
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						width="9rem">
+						<Label text="{i18n>desde}" required="true" />
+						<t:template>
+							<DatePicker dateValue="{path:'mapfresa>DateLow'}" 
+									displayFormat="dd/MM/yyyy"
+									 fieldGroupIds="fgDate" change="onChangeDate" />
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						width="9rem">
+						<Label text="{i18n>hasta}" required="true" />
+						<t:template>
+							<DatePicker dateValue="{path:'mapfresa>DateHigh'}" 
+									displayFormat="dd/MM/yyyy"
+									 fieldGroupIds="fgDate" change="onChangeDate" />
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						width="9rem">
+						<Label text="{i18n>fechaRegistro}" />
+						<t:template>
+							<Text text="{path:'mapfresa>ExecutionDate', type:'sap.ui.model.type.Date', formatOptions:{
+								pattern:'dd/MM/yyyy'
+							}}" 
+									textAlign="End"  />
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						width="9rem">
+						<Label text="{i18n>horaRegistro}" />
+						<t:template>
+							<Text text="{path:'mapfresa>ExecutionHour', type:'sap.ui.model.odata.type.Time'}" 
+									textAlign="End" />
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						width="9rem">
+						<Label text="{i18n>usuarioRegistro}" />
+						<t:template>
+							<Text text="{path:'mapfresa>Userid'}" 
+									textAlign="End" />
+						</t:template>
+					</t:Column>
+				</t:columns>				
+			</t:Table>
+			</IconTabFilter>
