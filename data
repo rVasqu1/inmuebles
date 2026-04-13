@@ -1,88 +1,203 @@
-dowloadExceltipoCeco: function () {
-    var oTable = this.byId("tableTipoCeco");
-    var oBinding = oTable.getBinding("rows");
-    var aContexts = oBinding.getContexts();
-
-    if (!aContexts.length) {
-        sap.m.MessageToast.show("No hay datos para exportar");
-        return;
-    }
-
-    var aData = aContexts.map(function (oContext) {
-        return oContext.getObject();
-    });
-
-    var aColumns = [];
-
-    oTable.getColumns().forEach(function (oColumn) {
-        if (!oColumn.getVisible()) return;
-
-        var oLabel = oColumn.getLabel();
-        var sLabel = oLabel ? oLabel.getText() : "";
-        if (!sLabel) return;
-
-        var oTemplate = oColumn.getTemplate();
-        var sProperty = null;
-
-        if (oTemplate) {
-            var oBindingInfo = oTemplate.getBindingInfo("value") || oTemplate.getBindingInfo("text");
-            if (oBindingInfo && oBindingInfo.parts && oBindingInfo.parts.length > 0) {
-                sProperty = oBindingInfo.parts[0].path;
-            }
-        }
-
-        if (!sProperty) return;
-
-        // ✅ Stesso controllo del tipo della funzione dowloadExcelCeco
-        if (sProperty === "ExecutionDate") {
-            aColumns.push({ label: sLabel, property: sProperty, type: sap.ui.export.EdmType.Date });
-        } else {
-            aColumns.push({ label: sLabel, property: sProperty, type: sap.ui.export.EdmType.String });
-        }
-    });
-
-    if (!aColumns.length) {
-        sap.m.MessageToast.show("No hay columnas para exportar");
-        return;
-    }
-
-    // ✅ Stesso aFormattedData della funzione dowloadExcelCeco
-    var aFormattedData = aData.map(function (oItem) {
-        var oRow = {};
-        aColumns.forEach(function (oCol) {
-            var vValue = oItem[oCol.property];
-
-            // ✅ Conversione ExecutionHour da ms a HH:MM:SS
-            if (oCol.property === "ExecutionHour") {
-                if (vValue && typeof vValue === "object" && vValue.ms !== undefined) {
-                    var totalSeconds = Math.floor(vValue.ms / 1000);
-                    var h = Math.floor(totalSeconds / 3600);
-                    var m = Math.floor((totalSeconds % 3600) / 60);
-                    var s = totalSeconds % 60;
-                    vValue = h.toString().padStart(2, "0") + ":" +
-                             m.toString().padStart(2, "0") + ":" +
-                             s.toString().padStart(2, "0");
+	<IconTabFilter text="{i18n>markup}" key="markup">
+				<t:Table id="tableMarkup"	
+						rows="{mapfresa>/markup}" 
+						selectionMode="Multi"
+						visibleRowCountMode="Auto"
+						threshold="15"
+						scrollThreshold="50"
+						enableBusyIndicator="true">
+					<t:extension>
+					<OverflowToolbar style="Clear">						
+						<ToolbarSpacer/>
+						<!--  INI RJVS 04/03/2026 botones upload y download -->
+							<Button
+							press= "onDownloadExcelMarkup"
+							icon="sap-icon://download"
+							/>
+							<unified:FileUploader id="FileUploadMarkup" 
+							                      buttonOnly="true" 
+												  icon="sap-icon://upload" 
+												  change="oFileUploadMarkup" 
+												  buttonText=" " 
+												  loadUrl="/dummy" 
+												  fileType="xlsx" 
+												  sameFilenameAllowed="true" />					
+						<!--  FIN RJVS 04/03/2026 botones upload y download -->
+						<Button
+							icon="sap-icon://add"
+							press="onAddRowMarkup" visible="{=${aux>/procesado} ? false : true}"/>
+                        <Button
+							icon="sap-icon://copy"
+							press="onCopyRowMarkup" visible="{=${aux>/procesado}? false : true}"/>
+							<Button
+							icon="sap-icon://delete"
+							press="onDeleteRowMarkup" visible="{=${aux>/procesado}? false : true}"/>
+					</OverflowToolbar>
+				</t:extension>
+				<t:columns>
+					<t:Column
+						autoResizable="true"
+						width="4rem">
+						<Label text="" />
+						<t:template>
+                            <Text text="{mapfresa>_numerico}"/>
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						width="12rem">
+						<Label text="{i18n>markup}" required="true" />
+						<t:template>
+                            <Input value="{ path: 'mapfresa>Markup', formatter: '.formatPorcentaje' }" fieldGroupIds="fgMarkup"
+                                   textAlign="End" change=".onChangeMarkup"/>
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						width="9rem">
+						<Label text="{i18n>desde}" required="true" />
+						<t:template>
+							<DatePicker dateValue="{path:'mapfresa>DateLow'}" 
+									displayFormat="dd/MM/yyyy"
+									 fieldGroupIds="fgDate" change="onChangeDate" />
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						width="9rem">
+						<Label text="{i18n>hasta}" required="true" />
+						<t:template>
+							<DatePicker dateValue="{path:'mapfresa>DateHigh'}" 
+									displayFormat="dd/MM/yyyy"
+									 fieldGroupIds="fgDate" change="onChangeDate" />
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						width="9rem">
+						<Label text="{i18n>fechaRegistro}" />
+						<t:template>
+							<Text text="{path:'mapfresa>ExecutionDate', type:'sap.ui.model.type.Date', formatOptions:{
+								pattern:'dd/MM/yyyy'
+							}}" 
+									textAlign="End"  />
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						width="9rem">
+						<Label text="{i18n>horaRegistro}" />
+						<t:template>
+							<Text text="{path:'mapfresa>ExecutionHour', type:'sap.ui.model.odata.type.Time'}" 
+									textAlign="End" />
+						</t:template>
+					</t:Column>
+					<t:Column
+						autoResizable="true"
+						width="9rem">
+						<Label text="{i18n>usuarioRegistro}" />
+						<t:template>
+							<Text text="{path:'mapfresa>Userid'}" 
+									textAlign="End" />
+						</t:template>
+					</t:Column>
+				</t:columns>				
+			</t:Table>
+			</IconTabFilter> onDownloadExcelMarkup: function () {
+                // Se obtiene la tabla
+                var oTable = this.byId("tableMarkup");
+                // Se obtiene el binding de sus filas
+                var oBinding = oTable.getBinding("rows");
+                // Se obtiene los contexto de cada fila
+                var aContexts = oBinding.getContexts();
+                //Se comprueba si tamaño del array de contextos es distinto a 0
+                if (!aContexts.length) {
+                    sap.m.MessageToast.show("No hay datos para exportar");
+                    return;
                 }
-            }
+                //Recorriendo los contextos para obtener los datos
+                var aData = aContexts.map(function (oContext) {
+                    return oContext.getObject();
+                });
+                // Array de columnas
+                var aColumns = [];
+                // Recorremos las columnas
+                oTable.getColumns().forEach(function (oColumn) {
+                    //Se obtiene el label
+                    var oLabel = oColumn.getLabel();
+                    // En caso que exista el label, se trae su texto, si no vacío
+                    var sLabel = oLabel ? oLabel.getText() : "";
+                    //Como se agrega el valor por sort o filter, identificamos la propiedad
+                    var sProperty = oColumn.getSortProperty() || oColumn.getFilterProperty() || "";
+                    //Se hace un if para setear 
+                    if (!sProperty) {
+                        return;
+                    }
+                    //if para determinar si el tipo es Date o String
+                    if (sProperty === "DateHigh" || sProperty === "DateLow" || sProperty === "ExecutionDate") {
+                        aColumns.push({
+                            label: sLabel,
+                            property: sProperty,
+                            type: sap.ui.export.EdmType.Date
+                        });
+                    } else {
+                        aColumns.push({
+                            label: sLabel,
+                            property: sProperty,
+                            type: sap.ui.export.EdmType.String
+                        });
+                    }
+                });
+                //Recorriendo los contextos para obtener los datos
+                var aFormattedData = aData.map(function (oItem) {
+                    // Array de columna
+                    var oRow = {};
+                    // Recorremos las columnas
+                    aColumns.forEach(function (oCol) {
+                        //Creando variable para llegar a ExecutionHourdesde array
+                        var vValue = oItem[oCol.property];
+                        //Buscar la columna que apunta a ExecutionHour
+                        if (oCol.property === "ExecutionHour") {
+                            //Creando condición para comprobar si hay un objecto o si es indefinido
+                            if (vValue && typeof vValue === "object" && vValue.ms !== undefined) {
 
-            if (vValue === null || vValue === undefined) {
-                vValue = "";
-            }
+                                var totalSeconds = Math.floor(vValue.ms / 1000);
+                                //caluclo para obtener horas, minutos y segundos
+                                var h = Math.floor(totalSeconds / 3600);
+                                var m = Math.floor((totalSeconds % 3600) / 60);
+                                var s = totalSeconds % 60;
 
-            oRow[oCol.property] = vValue;
-        });
-        return oRow;
-    });
+                                vValue =
+                                    h.toString().padStart(2, "0") + ":" +
+                                    m.toString().padStart(2, "0") + ":" +
+                                    s.toString().padStart(2, "0");
+                            }
+                        }
+                        // si es vacio me devuelve el campo vacio 
+                        if (vValue === null || vValue === undefined) {
+                            vValue = "";
+                        }
 
-    var oSettings = {
-        workbook: { columns: aColumns },
-        dataSource: aFormattedData,
-        fileName: this.oResourceBundle.getText("nombreExcel") + ".xlsx",
-        worker: false
-    };
+                        oRow[oCol.property] = vValue;
+                    });
 
-    var oSheet = new sap.ui.export.Spreadsheet(oSettings);
-    oSheet.build().finally(function () {
-        oSheet.destroy();
-    });
-},
+                    return oRow;
+
+                });
+                // Se crea la configuracion del excel
+                var oSettings = {
+                    workbook: {
+                        columns: aColumns
+                    },
+                    dataSource: aFormattedData,
+                    fileName: this.oResourceBundle.getText("nombreExcel") + ".xlsx",
+                    worker: false
+                };
+                //Se genera un excel
+                var oSheet = new sap.ui.export.Spreadsheet(oSettings);
+                //Se descarga el excel
+                oSheet.build().finally(function () {
+                    oSheet.destroy();
+                });
+
+            },
