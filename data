@@ -1,1800 +1,451 @@
-sap.ui.define([
-    "sap/ui/core/mvc/Controller",
-    "sap/ui/core/format/NumberFormat",
-    "sap/ui/export/Spreadsheet",
-    "sap/ui/export/library",
-    "sap/ui/core/util/File"
-],
-    function (Controller, NumberFormat, Spreadsheet, exportLibrary, File) {
-        "use strict";
+excelDateToJSDate: function (serial) {
+    //Si viene vacio o no es numero, se devuelve null
+    if (serial === null || serial === undefined || serial === "" || isNaN(serial)) {
+        return null;
+    }
+    var utc_days = Math.floor(serial - 25569);
+    var utc_value = utc_days * 86400;
+    var date_info = new Date(utc_value * 1000);
 
-        return Controller.extend("mapfre.mapfresa.controller.View1", {
-            onAfterRendering() {
-                if (typeof XLSX === "undefined") {
-                    var oldDefine = window.define;
-                    window.define = null;
-                    var oScript = document.createElement("script");
-                    oScript.src = "http://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+    var fecha = new Date(
+        date_info.getUTCFullYear(),
+        date_info.getUTCMonth(),
+        date_info.getUTCDate()
+    );
+    //Se compensa la zona horaria igual que hace onChangeDate
+    return new Date(fecha.getTime() - (fecha.getTimezoneOffset() * 60 * 1000));
+},
+oFileUploadCeco: function (oEvent) {
+    //Se lee el fichero
+    var oUploader = oEvent.getSource();
+    var oFile = oEvent.getParameter("files")[0];
+    if (!oFile) return;
+    //Funcion base para leer archivo
+    var reader = new FileReader();
+    reader.onload = function (e) {
+        var data = new Uint8Array(e.target.result);
+        var workbook = XLSX.read(data, { type: "array" });
+        var sheet = workbook.Sheets[workbook.SheetNames[0]];
+        var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
+        //Se crea variable para obtener el modelo 
+        var oModel = this.getView().getModel("mapfresa");
+        var ceco = oModel.getProperty("/ceco");
+        var tipoCeco = oModel.getProperty("/tipoCeco");
 
-                    oScript.onload = function () {
-                        window.define = oldDefine;
-                    };
-                    document.head.appendChild(oScript);
+        for (var i = 0; i < rows.length; i++) {
+            var row = rows[i];
+            //si la fila esta vacia, se salta
+            if (!row || row.length === 0) continue;
+
+            //Se leen los datos de la fila
+            var sCostCenter = row[0] ? row[0].toString().trim() : "";
+            var sDedication = row[1] ? row[1].toString().replace("%", "").replace(",", ".").trim() : "";
+            var sTypeId = row[2] ? row[2].toString().trim() : "";
+            var dDateLow = this.excelDateToJSDate(row[3]);
+            var dDateHigh = this.excelDateToJSDate(row[4]);
+
+            //Sin ceco no se puede identificar la fila, se ignora
+            if (!sCostCenter) continue;
+
+            //Se busca la fila por clave de negocio, NO por posicion
+            var item = null;
+            for (var j = 0; j < ceco.length; j++) {
+                var iLowMod = ceco[j].DateLow ? new Date(ceco[j].DateLow).getTime() : 0;
+                var iHighMod = ceco[j].DateHigh ? new Date(ceco[j].DateHigh).getTime() : 0;
+                var iLowExcel = dDateLow ? dDateLow.getTime() : 0;
+                var iHighExcel = dDateHigh ? dDateHigh.getTime() : 0;
+
+                if (ceco[j].CostCenter === sCostCenter &&
+                    iLowMod === iLowExcel &&
+                    iHighMod === iHighExcel) {
+                    item = ceco[j];
+                    break;
                 }
-                this.lastIdTCeco = 90000;
-                this.lastIdTNat = 90000;
-                this.aux = new sap.ui.model.json.JSONModel({});
-                this.getView().setModel(this.aux, "aux");
-                this.getView().setModel(new sap.ui.model.json.JSONModel({
-                    ceco: [],
-                    _deleteCeco: [],
-                    naturaleza: [],
-                    _deleteNaturaleza: [],
-                    tipoCeco: [],
-                    _deleteTipoCeco: [],
-                    tipoNat: [],
-                    _deleteTipoNat: [],
-                    markup: [],
-                    _deleteMarkup: []
-                }), "mapfresa");
-                this.oResourceBundle = this.getView().getModel("i18n").getResourceBundle();
-                this.aux.setProperty("/currentL", sap.ui.getCore().getConfiguration().getLanguage());
+            }
 
-                this.getView().getModel().read("/ZCMSD_FACT_CECO", {
-                    success: function (odata) {
-                        for (var i in odata.results) {
-                            var oContextCeco = this.getView().getModel().createEntry("/ZCMSD_FACT_CECO", {
-                                properties: {
-                                    Zsociedad: '0004',
-                                    CostCenter: odata.results[i].CostCenter
-                                }
-                            })
-                            odata.results[i]._pathSmarfield = oContextCeco.getPath();
-                            odata.results[i]._numerico = (parseInt(i) + 1);
-                        }
-                        this.getView().getModel("mapfresa").setProperty("/ceco", odata.results);
-                    }.bind(this)
-                })
-
-                this.getView().getModel().read("/ZCMSD_FACT_FEES", {
-                    success: function (odata) {
-                        for (var i in odata.results) {
-                            var oContextCeco = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
-                                properties: {
-                                    Zsociedad: '0004',
-                                    SaknrLow: odata.results[i].SaknrLow,
-                                    SaknrHigh: odata.results[i].SaknrHigh
-                                }
-                            })
-                            odata.results[i]._pathSmarfield = oContextCeco.getPath();
-                            odata.results[i]._numerico = (parseInt(i) + 1);
-                        }
-                        this.getView().getModel("mapfresa").setProperty("/naturaleza", odata.results);
-                    }.bind(this)
-                })
-
-                this.getView().getModel().read("/ZCMSD_FACT_CECOT", {
-                    sorters: [new sap.ui.model.Sorter("Id", false)],
-                    success: function (odata) {
-                        for (var i in odata.results) {
-                            odata.results[i]._numerico = (parseInt(i) + 1);
-                        }
-                        this.getView().getModel("mapfresa").setProperty("/tipoCeco", odata.results);
-                    }.bind(this)
-                })
-
-                this.getView().getModel().read("/ZCMSD_FACT_NAT", {
-                    sorters: [new sap.ui.model.Sorter("Id", false)],
-                    success: function (odata) {
-                        for (var i in odata.results) {
-                            odata.results[i]._numerico = (parseInt(i) + 1);
-                        }
-                        this.getView().getModel("mapfresa").setProperty("/tipoNat", odata.results);
-                    }.bind(this)
-                })
-
-                this.getView().getModel().read("/ZCMSD_FACT_MARKUP", {
-                    sorters: [new sap.ui.model.Sorter("Id", false)],
-                    success: function (odata) {
-                        for (var i in odata.results) {
-                            odata.results[i]._numerico = (parseInt(i) + 1);
-                        }
-                        this.getView().getModel("mapfresa").setProperty("/markup", odata.results);
-                    }.bind(this)
-                })
-
-                // Obtener configuración regional del usuario
-                const oLocale = sap.ui.getCore().getConfiguration().getLocale();
-
-                // Formateador para mostrar porcentaje (ej: 10,00%)
-                this.oNumberFormatPercent = NumberFormat.getPercentInstance({
-                    decimals: 2
-                }, oLocale);
-
-                // Formateador para parsear número decimal con coma o punto
-                this.oNumberFormatDecimal = NumberFormat.getFloatInstance({
-                    decimals: 2
-                }, oLocale);
-
-            },
-
-            formatPorcentaje: function (fValue) {
-                if (fValue === undefined || fValue === null || isNaN(fValue)) {
-                    return this.oNumberFormatPercent.format(0);
-                }
-
-                // El formateador espera valor entre 0 y 1 → dividir por 100
-                return this.oNumberFormatPercent.format(fValue / 100);
-            },
-
-            onChangePorcentaje: function (oEvent) {
-                let sValue = oEvent.getParameter("value");
-
-                // Eliminar símbolo de porcentaje
-                sValue = sValue.replace("%", "").trim();
-
-                // Parsear con formato local (soporta coma o punto decimal)
-                let fValue = this.oNumberFormatDecimal.parse(sValue);
-
-                if (isNaN(fValue)) {
-                    fValue = 0.00;
-                } else if (fValue < 0) {
-                    fValue = 0.00;
-                } else if (fValue > 100) {
-                    fValue = 100.00;
-                }
-
-                // Guardar valor real (ej: 10.00) en el modelo
-                var obj = oEvent.getSource().getBindingContext("mapfresa").getObject();
-                obj.Dedication = fValue;
-                oEvent.getSource().getModel("mapfresa").refresh();
-                oEvent.getSource().setValueState("None");
-            },
-            onChangeMarkup: function (oEvent) {
-                let sValue = oEvent.getParameter("value");
-
-                // Eliminar símbolo de porcentaje
-                sValue = sValue.replace("%", "").trim();
-
-                // Parsear con formato local (soporta coma o punto decimal)
-                let fValue = this.oNumberFormatDecimal.parse(sValue);
-
-                if (isNaN(fValue)) {
-                    fValue = 0.00;
-                } else if (fValue < 0) {
-                    fValue = 0.00;
-                } else if (fValue > 100) {
-                    fValue = 100.00;
-                }
-
-                // Guardar valor real (ej: 10.00) en el modelo
-                var obj = oEvent.getSource().getBindingContext("mapfresa").getObject();
-                obj.Markup = fValue;
-                oEvent.getSource().getModel("mapfresa").refresh();
-                oEvent.getSource().setValueState("None");
-            },
-            onChangeTipo: function (oEvent) {
-                var objContext = oEvent.getSource().getBindingContext("mapfresa").getObject();
-                var tipoCeco = this.getView().getModel("mapfresa").getProperty("/tipoCeco");
-                var tipologia = tipoCeco.filter((tipologia) => tipologia.Id == objContext.TypeId)
-                objContext.Type = this.aux.getProperty("/currentL") === 'es-ES' ? tipologia[0].Description : tipologia[0].DescriptionEng;
-                objContext.TypeOrder = tipologia[0].Orden
-                oEvent.getSource().setValueState("None");
-            },
-            onChangeClass: function (oEvent) {
-                var objContext = oEvent.getSource().getBindingContext("mapfresa").getObject();
-                var tipoNat = this.getView().getModel("mapfresa").getProperty("/tipoNat");
-                var tipologia = tipoNat.filter((tipologia) => tipologia.Id == objContext.ClassId)
-                objContext.Class = this.aux.getProperty("/currentL") === 'es-ES' ? tipologia[0].Description : tipologia[0].DescriptionEng;
-                objContext.ClassOrder = tipologia[0].Orden;
-                oEvent.getSource().setValueState("None");
-            },
-            onChangeDate: function (oEvent) {
-                var date = oEvent.getSource().getDateValue();
-                oEvent.getSource().setDateValue(new Date(date.getTime() - (date.getTimezoneOffset() * 60 * 1000)));
-                oEvent.getSource().setValueState("None");
-            },
-            onAddRowCeco: function () {
-                var oModel = this.getView().getModel("mapfresa");
-                var aRows = oModel.getProperty("/ceco");
-
+            if (item) {
+                //Ya existe: solo se actualiza lo editable, no se toca ceco ni fechas
+                item.Dedication = parseFloat(sDedication) || 0;
+                item.TypeId = sTypeId;
+            } else {
+                //Si no existe se crea entrada para el oData
                 var oContextCeco = this.getView().getModel().createEntry("/ZCMSD_FACT_CECO", {
                     properties: {
-                        Zsociedad: '0004'
+                        Zsociedad: '0004',
+                        CostCenter: sCostCenter
                     }
-                })
-
-                // Fila vacía 
-                var oNewRow = {
+                });
+                //se crea objecto local con el path contexto del oData
+                item = {
                     _pathSmarfield: oContextCeco.getPath()
                 };
+                //Se asignan los datos desde Excel
+                item.CostCenter = sCostCenter;
+                item.Dedication = parseFloat(sDedication) || 0;
+                item.TypeId = sTypeId;
+                item.DateLow = dDateLow;
+                item.DateHigh = dDateHigh;
+                // Se agrega el nuevo elemento en el array
+                ceco.push(item);
+            }
 
-                aRows.push(oNewRow);
-                oNewRow._numerico = aRows.length;
-                oModel.setProperty("/ceco", aRows);
-            },
-            onCopyRowCeco: function (oEvent) {
-                var tableCeco = this.getView().byId("tableCeco");
-                var aIndex = tableCeco.getSelectedIndices();
-                var obj = this.getView().getModel("mapfresa").getData().ceco;
-                for (var i in aIndex) {
-                    var oContextCeco = this.getView().getModel().createEntry("/ZCMSD_FACT_CECO", {
-                        properties: {
-                            Zsociedad: '0004',
-                            CostCenter: obj[aIndex[i]].CostCenter
-                        }
-                    })
-
-                    // Fila vacía 
-                    var oNewRow = jQuery.extend({}, obj[aIndex[i]]);
-                    oNewRow._pathSmarfield = oContextCeco.getPath();
-                    oNewRow.Id = undefined;
-                    oNewRow.ExecutionDate = undefined;
-                    oNewRow.ExecutionHour = undefined;
-                    oNewRow.Userid = undefined;
-                    obj.push(oNewRow);
-                    oNewRow._numerico = obj.length;
-                }
-                this.getView().getModel("mapfresa").refresh();
-
-            },
-            onDeleteRowCeco: function () {
-                var oView = this.getView();
-                var tableCeco = oView.byId("tableCeco");
-                var aIndex = tableCeco.getSelectedIndices();
-                var oModel = oView.getModel("mapfresa");
-                var obj = oModel.getData().ceco;
-                var _deleteCeco = oModel.getData()._deleteCeco;
-                var aCeco = [];
-                for (var i in obj) {
-                    if (aIndex.filter((index) => index == i).length > 0) {
-                        if (obj[i].Id) {
-                            _deleteCeco.push(obj[i]);
-                        }
-                    } else {
-                        aCeco.push(obj[i]);
+            //Se rellena Type y TypeOrder igual que hace onChangeTipo
+            if (item.TypeId) {
+                for (var k = 0; k < tipoCeco.length; k++) {
+                    if (tipoCeco[k].Id + "" === item.TypeId + "") {
+                        item.Type = this.aux.getProperty("/currentL") === 'es-ES'
+                            ? tipoCeco[k].Description
+                            : tipoCeco[k].DescriptionEng;
+                        item.TypeOrder = tipoCeco[k].Orden;
+                        break;
                     }
                 }
-                this.getView().getModel("mapfresa").setProperty("/ceco", aCeco);
+            }
+        }
 
-            },
-            onChangeCeCo: function (oEvent) {
-                var objectContext = oEvent.getSource().getBindingContext("mapfresa").getObject();
-                objectContext.CostCenter = oEvent.getParameter("value");
-                oEvent.getSource().setValueState("None");
-            },
-            onAddRowNat: function () {
-                var oModel = this.getView().getModel("mapfresa");
-                var aRows = oModel.getProperty("/naturaleza");
+        //Se renumera la columna del contador
+        for (var n = 0; n < ceco.length; n++) {
+            ceco[n]._numerico = n + 1;
+        }
 
-                var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
-                    properties: {
-                        Zsociedad: '0004'
-                    }
-                })
+        //Las propriedades se asignan en el modelo
+        oModel.setProperty("/ceco", ceco);
+        //Se actualiza el modelo
+        oModel.refresh(true);
+        //Se limpia el uploader para poder subir el mismo fichero otra vez
+        oUploader.clear();
+        //Se muestra un mensaje de carga correcta de los datos
+        sap.m.MessageToast.show("Excel cargado correctamente");
+    }.bind(this);
 
-                // Fila vacía 
-                var oNewRow = {
-                    _pathSmarfield: oContextNat.getPath()
-                };
+    reader.readAsArrayBuffer(oFile);
+},
+oFileUploadTipoeco: function (oEvent) {
+    //Se lee el fichero
+    var oUploader = oEvent.getSource();
+    var oFile = oEvent.getParameter("files")[0];
+    if (!oFile) return;
+    //Funcion base para leer archivo
+    var reader = new FileReader();
+    reader.onload = function (e) {
+        var data = new Uint8Array(e.target.result);
+        var workbook = XLSX.read(data, { type: "array" });
+        var sheet = workbook.Sheets[workbook.SheetNames[0]];
+        var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
+        //Se crea variable para obtener el modelo
+        var oModel = this.getView().getModel("mapfresa");
+        var tipoCeco = oModel.getProperty("/tipoCeco");
 
-                aRows.push(oNewRow);
-                oNewRow._numerico = aRows.length;
-                oModel.setProperty("/naturaleza", aRows);
-            },
-            onCopyRowNat: function (oEvent) {
-                var tableNaturaleza = this.getView().byId("tableNaturaleza");
-                var aIndex = tableNaturaleza.getSelectedIndices();
-                var obj = this.getView().getModel("mapfresa").getData().naturaleza;
-                for (var i in aIndex) {
-                    var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
-                        properties: {
-                            Zsociedad: '0004',
-                            SaknrLow: obj[aIndex[i]].SaknrLow,
-                            SaknrHigh: obj[aIndex[i]].SaknrHigh
-                        }
-                    })
+        for (var i = 0; i < rows.length; i++) {
+            var row = rows[i];
+            //si la fila esta vacia, se salta
+            if (!row || row.length === 0) continue;
 
-                    // Fila vacía 
-                    var oNewRow = jQuery.extend({}, obj[aIndex[i]]);
-                    oNewRow._pathSmarfield = oContextNat.getPath();
-                    oNewRow.Id = undefined;
-                    oNewRow.ExecutionDate = undefined;
-                    oNewRow.ExecutionHour = undefined;
-                    oNewRow.Userid = undefined;
-                    obj.push(oNewRow);
-                    oNewRow._numerico = obj.length;
+            //Se leen los datos de la fila
+            var sOrden = row[0] ? row[0].toString().trim() : "";
+            var sDescription = row[1] ? row[1].toString() : "";
+            var sDescriptionEng = row[2] ? row[2].toString() : "";
+
+            //Sin orden no se puede identificar la fila, se ignora
+            if (!sOrden) continue;
+
+            //Se busca por Orden forzando la comparacion a texto
+            var item = null;
+            for (var j = 0; j < tipoCeco.length; j++) {
+                if ((tipoCeco[j].Orden + "") === sOrden) {
+                    item = tipoCeco[j];
+                    break;
                 }
-                this.getView().getModel("mapfresa").refresh();
+            }
 
-            },
-            onDeleteRowNat: function () {
-                var oView = this.getView();
-                var tableNaturaleza = oView.byId("tableNaturaleza");
-                var aIndex = tableNaturaleza.getSelectedIndices();
-                var oModel = oView.getModel("mapfresa");
-                var obj = oModel.getData().naturaleza;
-                var aNaturaleza = [];
-                for (var i in obj) {
-                    if (aIndex.filter((index) => index == i).length == 0) {
-                        aNaturaleza.push(obj[i]);
-                    };
+            if (item) {
+                //Solo se actualizan las tipologias propias, igual que el editable de la vista
+                if ((item.Id + "").indexOf("9") === 0) {
+                    item.Description = sDescription;
+                    item.DescriptionEng = sDescriptionEng;
                 }
-                var _deleteNaturaleza = oModel.getData()._deleteNaturaleza;
-                var aNat = [];
-                for (var i in obj) {
-                    if (aIndex.filter((index) => index == i).length > 0) {
-                        if (obj[i].Id) {
-                            _deleteNaturaleza.push(obj[i]);
-                        }
-                    } else {
-                        aNat.push(obj[i]);
-                    }
-                }
-                oModel.setProperty("/naturaleza", aNat);
-            },
-            onChangeCuentaA: function (oEvent) {
-                var objectContext = oEvent.getSource().getBindingContext("mapfresa").getObject();
-                objectContext.SaknrHigh = oEvent.getParameter("value");
-            },
-            onChangeCuentaDe: function (oEvent) {
-                var objectContext = oEvent.getSource().getBindingContext("mapfresa").getObject();
-                objectContext.SaknrLow = oEvent.getParameter("value");
-            },
-            rowsUpdated: function (oEvent) {
-                var rows = oEvent.getSource().getRows();
-                for (var i in rows) {
-                    //Por cada fila debes settear el binding que se haya creado un binding para el smartfield
-                    if (rows[i].getBindingContext("mapfresa")) {
-                        var objectContext = rows[i].getBindingContext("mapfresa").getObject()
-                        rows[i].bindElement(objectContext._pathSmarfield);
-                    }
-                }
-            },
-            onAddRowTCeco: function () {
-                var oModel = this.getView().getModel("mapfresa");
-                var aRows = oModel.getProperty("/tipoCeco");
-                // Fila vacía 
-                var oNewRow = {
-                    Id: this.lastIdTCeco,
-                    Deleted: ''
+            } else {
+                //Fila nueva: se asigna el Id igual que hace onAddRowTCeco
+                item = {
+                    Id: this.lastIdTCeco + "",
+                    Deleted: '',
+                    Orden: sOrden,
+                    Description: sDescription,
+                    DescriptionEng: sDescriptionEng
                 };
                 this.lastIdTCeco = this.lastIdTCeco + 1;
+                //Se agrega el nuevo elemento en el array
+                tipoCeco.push(item);
+            }
+        }
 
-                aRows.push(oNewRow);
-                oNewRow._numerico = aRows.length;
-                oModel.setProperty("/tipoCeco", aRows);
-            },
-            onCopyRowTCeco: function (oEvent) {
-                var tableTipoCeco = this.getView().byId("tableTipoCeco");
-                var aIndex = tableTipoCeco.getSelectedIndices();
-                var obj = this.getView().getModel("mapfresa").getData().tipoCeco;
-                for (var i in aIndex) {
+        //Se renumera la columna del contador
+        for (var n = 0; n < tipoCeco.length; n++) {
+            tipoCeco[n]._numerico = n + 1;
+        }
 
-                    // Fila vacía 
-                    var oNewRow = jQuery.extend({}, obj[aIndex[i]]);
-                    oNewRow.Id = undefined;
-                    oNewRow.Orden = "";
-                    oNewRow.ExecutionDate = undefined;
-                    oNewRow.ExecutionHour = undefined;
-                    oNewRow.Userid = undefined;
-                    obj.push(oNewRow);
-                    oNewRow._numerico = obj.length;
+        //Las propriedades se asignan en el modelo
+        oModel.setProperty("/tipoCeco", tipoCeco);
+        //Se actualiza el modelo
+        oModel.refresh(true);
+        //Se limpia el uploader para poder subir el mismo fichero otra vez
+        oUploader.clear();
+        //Se muestra un mensaje de carga correcta de los datos
+        sap.m.MessageToast.show("Excel cargado correctamente");
+    }.bind(this);
+
+    reader.readAsArrayBuffer(oFile);
+},
+oFileUploadTipoNat: function (oEvent) {
+    //Se lee el fichero
+    var oUploader = oEvent.getSource();
+    var oFile = oEvent.getParameter("files")[0];
+    if (!oFile) return;
+    //Funcion base para leer archivo
+    var reader = new FileReader();
+    reader.onload = function (e) {
+        var data = new Uint8Array(e.target.result);
+        var workbook = XLSX.read(data, { type: "array" });
+        var sheet = workbook.Sheets[workbook.SheetNames[0]];
+        var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
+        //Se crea variable para obtener el modelo
+        var oModel = this.getView().getModel("mapfresa");
+        var tipoNat = oModel.getProperty("/tipoNat");
+
+        for (var i = 0; i < rows.length; i++) {
+            var row = rows[i];
+            //si la fila esta vacia, se salta
+            if (!row || row.length === 0) continue;
+
+            //Se leen los datos de la fila
+            var sOrden = row[0] ? row[0].toString().trim() : "";
+            var sDescription = row[1] ? row[1].toString() : "";
+            var sDescriptionEng = row[2] ? row[2].toString() : "";
+
+            //Sin orden no se puede identificar la fila, se ignora
+            if (!sOrden) continue;
+
+            //Se busca por Orden forzando la comparacion a texto
+            var item = null;
+            for (var j = 0; j < tipoNat.length; j++) {
+                if ((tipoNat[j].Orden + "") === sOrden) {
+                    item = tipoNat[j];
+                    break;
                 }
-                this.getView().getModel("mapfresa").refresh();
+            }
 
-            },
-            onDeleteRowTCeco: function () {
-                var oView = this.getView();
-                var tableTipoCeco = oView.byId("tableTipoCeco");
-                var aIndex = tableTipoCeco.getSelectedIndices();
-                var oModel = this.getView().getModel("mapfresa");
-                var obj = oModel.getData().tipoCeco;
-                var _deleteTipoCeco = oModel.getData()._deleteTipoCeco;
-                var aTCeco = [];
-
-                for (var i in obj) {
-                    if (aIndex.filter((index) => index == i).length > 0) {
-                        //Se comprueba si no hay algun ceco que este consumiendolo
-                        var cecos = oModel.getData().ceco;
-                        var found = false;
-                        for (var j in cecos) {
-                            if (cecos[j].TypeId === obj[i].Id) {
-                                found = true;
-                                break;
-                            }
-                        }
-                        if (found) {
-                            aTCeco.push(obj[i]);
-                        } else {
-                            _deleteTipoCeco.push(obj[i]);
-                        }
-                    } else {
-                        aTCeco.push(obj[i]);
-                    }
+            if (item) {
+                //Solo se actualizan las tipologias propias, igual que el editable de la vista
+                if ((item.Id + "").indexOf("9") === 0) {
+                    item.Description = sDescription;
+                    item.DescriptionEng = sDescriptionEng;
                 }
-                oModel.getData().tipoCeco = aTCeco;
-                oModel.refresh(true);
-            },
-            onAddRowTNat: function () {
-                var oModel = this.getView().getModel("mapfresa");
-                var aRows = oModel.getProperty("/tipoNat");
-                // Fila vacía 
-                var oNewRow = {
-                    Id: this.lastIdTNat
+            } else {
+                //Fila nueva: se asigna el Id igual que hace onAddRowTNat
+                item = {
+                    Id: this.lastIdTNat + "",
+                    Orden: sOrden,
+                    Description: sDescription,
+                    DescriptionEng: sDescriptionEng
                 };
                 this.lastIdTNat = this.lastIdTNat + 1;
-
-                aRows.push(oNewRow);
-                oNewRow._numerico = aRows.length;
-                oModel.setProperty("/tipoNat", aRows);
-            },
-            onCopyRowTNat: function (oEvent) {
-                var tableTipoNat = this.getView().byId("tableTipoNat");
-                var aIndex = tableTipoNat.getSelectedIndices();
-                var obj = this.getView().getModel("mapfresa").getData().tipoNat;
-                for (var i in aIndex) {
-                    // Fila vacía 
-                    var oNewRow = jQuery.extend({}, obj[aIndex[i]]);
-                    oNewRow.Id = undefined;
-                    oNewRow.Orden = "";
-                    oNewRow.ExecutionDate = undefined;
-                    oNewRow.ExecutionHour = undefined;
-                    oNewRow.Userid = undefined;
-                    obj.push(oNewRow);
-                    oNewRow._numerico = obj.length;
-                }
-                this.getView().getModel("mapfresa").refresh();
-
-            },
-            onDeleteRowTNat: function () {
-                var oView = this.getView();
-                var tableTipoNat = oView.byId("tableTipoNat");
-                var aIndex = tableTipoNat.getSelectedIndices();
-                var oModel = this.getView().getModel("mapfresa");
-                var obj = oModel.getData().tipoNat;
-                var _deleteTipoNat = oModel.getData()._deleteTipoNat;
-                var aTNat = [];
-
-                for (var i in obj) {
-                    if (aIndex.filter((index) => index == i).length > 0) {
-                        //Se comprueba si no hay algun ceco que este consumiendolo
-                        var naturalezas = oModel.getData().naturaleza;
-                        var found = false;
-                        for (var j in naturalezas) {
-                            if (naturalezas[j].ClassId === obj[i].Id) {
-                                found = true;
-                                break;
-                            }
-                        }
-                        if (found) {
-                            aTNat.push(obj[i]);
-                        } else {
-                            _deleteTipoNat.push(obj[i]);
-                        }
-                    } else {
-                        aTNat.push(obj[i]);
-                    }
-                }
-                oModel.getData().tipoNat = aTNat;
-                oModel.refresh(true);
-            },
-            onAddRowMarkup: function () {
-                var oModel = this.getView().getModel("mapfresa");
-                var aRows = oModel.getProperty("/markup");
-                // Fila vacía 
-                var oNewRow = {
-                };
-
-                aRows.push(oNewRow);
-                oNewRow._numerico = aRows.length;
-                oModel.setProperty("/markup", aRows);
-            },
-            onCopyRowMarkup: function (oEvent) {
-                var tableMarkup = this.getView().byId("tableMarkup");
-                var aIndex = tableMarkup.getSelectedIndices();
-                var obj = this.getView().getModel("mapfresa").getData().markup;
-                for (var i in aIndex) {
-
-                    // Fila vacía 
-                    var oNewRow = jQuery.extend({}, obj[aIndex[i]]);
-                    oNewRow.Id = undefined;
-                    obj.push(oNewRow);
-                    oNewRow._numerico = obj.length;
-                }
-                this.getView().getModel("mapfresa").refresh();
-
-            },
-            onDeleteRowMarkup: function () {
-                var oView = this.getView();
-                var tableMarkup = oView.byId("tableMarkup");
-                var aIndex = tableMarkup.getSelectedIndices();
-                var oModel = oView.getModel("mapfresa");
-                var obj = oModel.getData().markup;
-                var _deleteMarkup = oModel.getData()._deleteMarkup;
-                var aMarkup = [];
-                for (var i in obj) {
-                    if (aIndex.filter((index) => index == i).length > 0) {
-                        if (obj[i].Id) {
-                            _deleteMarkup.push(obj[i]);
-                        }
-                    } else {
-                        aMarkup.push(obj[i]);
-                    }
-                }
-                this.getView().getModel("mapfresa").setProperty("/markup", aMarkup);
-
-            },
-            onGenerarPedido: function (oEvent) {
-                var odata = this.getView().getModel("mapfresa").getData();
-                var aMessages = [];
-                //Campos Obligatorios
-                var fieldGroup = this.getView().getControlsByFieldGroupId("fg1");
-                var aPromise = []
-                var hasError = false;
-                for (var i in fieldGroup) {
-                    if (fieldGroup[i].checkValuesValidity) {
-                        if (!fieldGroup[i].getValue() && fieldGroup[i].getBindingContext("mapfresa")) {
-                            fieldGroup[i].setValueState("Error");
-                            hasError = true
-                        } else {
-                            aPromise.push(fieldGroup[i].checkValuesValidity())
-                        }
-                    }
-                }
-                var fgDate = this.getView().getControlsByFieldGroupId("fgDate");
-                for (var i in fgDate) {
-                    if (fgDate[i].getDateValue) {
-                        if (!fgDate[i].getDateValue() && fgDate[i].getBindingContext("mapfresa")) {
-                            fgDate[i].setValueState("Error");
-                            hasError = true
-                        }
-                    }
-                }
-
-                var fgTipologia = this.getView().getControlsByFieldGroupId("fgTipologia");
-                for (var i in fgTipologia) {
-                    if (fgTipologia[i].getSelectedKey && fgTipologia[i].setValueState) {
-                        if (!fgTipologia[i].getSelectedKey() && fgTipologia[i].getBindingContext("mapfresa")) {
-                            fgTipologia[i].setValueState("Error");
-                            hasError = true
-                        }
-                    }
-                }
-
-                var fgDedicacion = this.getView().getControlsByFieldGroupId("fgDedicacion");
-                for (var i in fgDedicacion) {
-                    if (fgDedicacion[i].getValue && fgDedicacion[i].getBindingContext("mapfresa")) {
-                        if (!fgDedicacion[i].getValue()) {
-                            fgDedicacion[i].setValueState("Error");
-                            hasError = true
-                        }
-                    }
-                }
-
-                var fgDescription = this.getView().getControlsByFieldGroupId("fgDescription");
-                for (var i in fgDescription) {
-                    if (fgDescription[i].getValue && fgDescription[i].getBindingContext("mapfresa")) {
-                        if (!fgDescription[i].getValue()) {
-                            fgDescription[i].setValueState("Error");
-                            hasError = true
-                        }
-                    }
-                }
-
-                if (hasError) {
-                    return;
-                }
-
-                Promise.all(aPromise).then(function () {
-
-                    //Validar que las fechas estan correctas y la dedicacion
-                    for (var i in odata.ceco) {
-                        if (odata.ceco[i].DateLow > odata.ceco[i].DateHigh) {
-                            var message = {};
-                            message.group = this.oResourceBundle.getText("ceco") + " " + this.oResourceBundle.getText("fila") + ' ' + (parseInt(i) + 1);
-                            message.message = this.oResourceBundle.getText("fechaNoPuedeSerMayor");
-                            aMessages.push(message);
-                            hasError = true;
-                        }
-                        //Se comprueba si es dedicacion
-                        var isMaxDedication = this.comprobarDedicacion(odata.ceco, i);
-                        if (isMaxDedication) {
-                            var message = {};
-                            message.group = this.oResourceBundle.getText("ceco") + " " + this.oResourceBundle.getText("fila") + ' ' + (parseInt(i) + 1);
-                            message.message = this.oResourceBundle.getText("dedicacionMayor100");
-                            aMessages.push(message);
-                            hasError = true;
-                        }
-                    }
-
-                    //Validar que las fechas estan correctas y la cuentas contables
-                    for (var i in odata.naturaleza) {
-                        if (odata.naturaleza[i].DateLow > odata.naturaleza[i].DateHigh) {
-                            var message = {};
-                            message.group = this.oResourceBundle.getText("naturaleza") + " " + this.oResourceBundle.getText("fila") + ' ' + (parseInt(i) + 1);
-                            message.message = this.oResourceBundle.getText("fechaNoPuedeSerMayor");
-                            aMessages.push(message);
-                            hasError = true;
-                        }
-                        //Se comprueba si la cuenta contable esta en otro rango y no es correcto
-                        var isInOtherAccount = this.comprobarCuentas(odata.naturaleza, i);
-                        if (isInOtherAccount) {
-                            var message = {};
-                            message.group = this.oResourceBundle.getText("naturaleza") + " " + this.oResourceBundle.getText("fila") + ' ' + (parseInt(i) + 1);
-                            message.message = this.oResourceBundle.getText("seEncuentraEnOtraCuenta");
-                            aMessages.push(message);
-                            hasError = true;
-                        }
-                    }
-
-                    //Validar que las fechas estan correctas y la markup
-                    for (var i in odata.markup) {
-                        if (odata.markup[i].DateLow > odata.markup[i].DateHigh) {
-                            var message = {};
-                            message.group = this.oResourceBundle.getText("markup") + " " + this.oResourceBundle.getText("fila") + ' ' + (parseInt(i) + 1);
-                            message.message = this.oResourceBundle.getText("fechaNoPuedeSerMayor");
-                            aMessages.push(message);
-                            hasError = true;
-                        }
-                        //Se comprueba si el markup esta en otro rango y no es correcto
-                        var isInOtherMarkup = this.comprobarRangoFecha(odata.markup, i);
-                        if (isInOtherMarkup) {
-                            var message = {};
-                            message.group = this.oResourceBundle.getText("markup") + " " + this.oResourceBundle.getText("fila") + ' ' + (parseInt(i) + 1);
-                            message.message = this.oResourceBundle.getText("seEncuentraEnMarkup");
-                            aMessages.push(message);
-                            hasError = true;
-                        }
-                    }
-
-
-
-                    if (hasError && aMessages.length > 0) {
-                        aMessages = this.armarMensajFront(aMessages);
-                        this.mostrarMensajes(aMessages, this);
-                        return;
-                    }
-
-
-                    //Agregamos los registros borrados
-                    for (var i in odata._deleteCeco) {
-                        var item = odata._deleteCeco[i];
-                        item.Deleted = "X";
-                        odata.ceco.push(item);
-                    }
-                    for (var i in odata._deleteNaturaleza) {
-                        var item = odata._deleteNaturaleza[i];
-                        item.Deleted = "X";
-                        odata.naturaleza.push(item);
-                    }
-                    for (var i in odata._deleteTipoCeco) {
-                        var item = odata._deleteTipoCeco[i];
-                        item.Deleted = "X";
-                        odata.tipoCeco.push(item);
-                    }
-                    for (var i in odata._deleteTipoNat) {
-                        var item = odata._deleteTipoNat[i];
-                        item.Deleted = "X";
-                        odata.tipoNat.push(item);
-                    }
-                    for (var i in odata._deleteMarkup) {
-                        var item = odata._deleteMarkup[i];
-                        item.Deleted = "X";
-                        odata.markup.push(item);
-                    }
-
-                    //Eliminamos campos innecesarios
-
-                    for (var i in odata.ceco) {
-                        for (var j in odata.ceco[i]) {
-                            if (j.indexOf("_") === 0) {
-                                odata.ceco[i][j] = undefined;
-                            }
-                        }
-                        odata.ceco[i].Dedication = odata.ceco[i].Dedication + "";
-                    }
-                    for (var i in odata.naturaleza) {
-                        for (var j in odata.naturaleza[i]) {
-                            if (j.indexOf("_") === 0) {
-                                odata.naturaleza[i][j] = undefined;
-                            }
-                        }
-                    }
-                    for (var i in odata.tipoCeco) {
-                        for (var j in odata.tipoCeco[i]) {
-                            if (j.indexOf("_") === 0) {
-                                odata.tipoCeco[i][j] = undefined;
-                            }
-                        }
-                        odata.tipoCeco[i].Id = odata.tipoCeco[i].Id + "";
-                    }
-                    for (var i in odata.tipoNat) {
-                        for (var j in odata.tipoNat[i]) {
-                            if (j.indexOf("_") === 0) {
-                                odata.tipoNat[i][j] = undefined;
-                            }
-                        }
-                        odata.tipoNat[i].Id = odata.tipoNat[i].Id + "";
-                    }
-                    for (var i in odata.markup) {
-                        for (var j in odata.markup[i]) {
-                            if (j.indexOf("_") === 0) {
-                                odata.markup[i][j] = undefined;
-                            }
-                        }
-                        odata.markup[i].Markup = odata.markup[i].Markup + "";
-                    }
-
-                    var item = {
-                        id: "",
-                        ceco: odata.ceco,
-                        naturaleza: odata.naturaleza,
-                        tipoCeco: odata.tipoCeco,
-                        tipoNat: odata.tipoNat,
-                        markup: odata.markup
-                    }
-
-                    this.dialogWaitPedido = new sap.m.Dialog(
-                        {
-                            showHeader: false,
-                            content: [
-                                new sap.m.HBox({ justifyContent: "Center", alignItems: "Center", items: [new sap.m.BusyIndicator({ text: "{i18n>procesandoDatos}" })] })
-                            ]
-                        }
-                    )
-                    this.getView().addDependent(this.dialogWaitPedido);
-                    this.dialogWaitPedido.open();
-                    this.getView().getModel().create("/headerSet", item, {
-                        success: function (odata, oResponse) {
-                            var jsonMessage = JSON.parse(oResponse.headers['sap-message']);
-                            var oItem = {
-                                message: jsonMessage.message,
-                                severity: jsonMessage.severity
-                            }
-
-                            jsonMessage.details.unshift(oItem);
-                            var messages = jsonMessage.details;
-                            messages.forEach(mensaje => {
-                                mensaje.group = this.oResourceBundle.getText("fila") + ' ' + mensaje.message.slice(6, 10);
-                                mensaje.message = mensaje.message.slice(20);
-
-                            });
-                            messages = this.armarMensajFront(messages);
-                            this.mostrarMensajes(messages, this);
-                            this.dialogWaitPedido.close();
-                            for (var i in odata.ceco.results) {
-                                var oContextCeco = this.getView().getModel().createEntry("/ZCMSD_FACT_CECO", {
-                                    properties: {
-                                        Zsociedad: '0004',
-                                        CostCenter: odata.ceco.results[i].CostCenter
-                                    }
-                                })
-                                odata.ceco.results[i]._pathSmarfield = oContextCeco.getPath();
-                                odata.ceco.results[i]._numerico = (parseInt(i) + 1);
-                            }
-                            this.getView().getModel("mapfresa").setProperty("/ceco", odata.ceco.results);
-
-                            for (var i in odata.naturaleza.results) {
-                                var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
-                                    properties: {
-                                        Zsociedad: '0004',
-                                        SaknrLow: odata.naturaleza.results[i].SaknrLow,
-                                        SaknrHigh: odata.naturaleza.results[i].SaknrHigh
-                                    }
-                                })
-                                odata.naturaleza.results[i]._pathSmarfield = oContextNat.getPath();
-                                odata.naturaleza.results[i]._numerico = (parseInt(i) + 1);
-                            }
-
-                            this.getView().getModel("mapfresa").setProperty("/naturaleza", odata.naturaleza.results);
-                            for (var i in odata.tipoCeco.results) {
-                                odata.tipoCeco.results[i]._numerico = (parseInt(i) + 1);
-                            }
-                            this.getView().getModel("mapfresa").setProperty("/tipoCeco", odata.tipoCeco.results);
-                            for (var i in odata.tipoNat.results) {
-                                odata.tipoNat.results[i]._numerico = (parseInt(i) + 1);
-                            }
-                            this.getView().getModel("mapfresa").setProperty("/tipoNat", odata.tipoNat.results);
-                            for (var i in odata.markup.results) {
-                                odata.markup.results[i]._numerico = (parseInt(i) + 1);
-                            }
-                            this.getView().getModel("mapfresa").setProperty("/markup", odata.markup.results);
-
-                        }.bind(this)
-                    })
-                }.bind(this)).catch(function () {
-                    hasError = true;
-                });
-            },
-            comprobarDedicacion: function (cecos, i) {
-                var item = cecos[i];
-                var sumDedicacion = 0;
-                for (var c in cecos) {
-                    var ceco = cecos[c];
-                    if (item.CostCenter === ceco.CostCenter) {
-                        if (item.DateLow <= ceco.DateHigh && item.DateHigh >= ceco.DateLow) {
-                            sumDedicacion = sumDedicacion + parseFloat(ceco.Dedication);
-                        }
-                    }
-                }
-                return 100 < sumDedicacion
-            },
-            comprobarCuentas: function (naturalezas, i) {
-                var item = naturalezas[i];
-                var found = false;
-                for (var n in naturalezas) {
-                    if (n !== i) {
-                        var nat = naturalezas[n];
-                        if (item.DateLow <= nat.DateHigh && item.DateHigh >= nat.DateLow) {
-                            if (item.SaknrHigh) {
-                                if (nat.SaknrHigh) {
-                                    if (item.SaknrLow <= nat.SaknrHigh && item.SaknrHigh >= nat.SaknrLow) {
-                                        found = true;
-                                        break;
-                                    }
-                                } else {
-                                    if (item.SaknrLow >= nat.SaknrLow && item.SaknrHigh <= nat.SaknrLow) {
-                                        found = true;
-                                        break;
-                                    }
-                                }
-                            } else {
-                                if (nat.SaknrHigh) {
-                                    if (item.SaknrLow <= nat.SaknrHigh && item.SaknrLow >= nat.SaknrLow) {
-                                        found = true;
-                                        break;
-                                    }
-                                } else {
-                                    if (item.SaknrLow == nat.SaknrLow) {
-                                        found = true;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                return found
-            },
-            comprobarRangoFecha: function (markups, i) {
-                var item = markups[i];
-                for (var m in markups) {
-                    var markup = markups[m];
-                    if (m != i) {
-                        if (item.DateLow <= markup.DateHigh && item.DateHigh >= markup.DateLow) {
-                            return true;
-                        }
-                    }
-                }
-                return false;
-            },
-            formarIdTCeco: function (value) {
-                if (value) {
-                    if ((value + "").indexOf("9") === 0) {
-                        return "*";
-                    } else {
-                        return value;
-                    }
-                }
-                return "";
-            },
-            onChangeDescrip: function (oEvent) {
-                oEvent.getSource().setValueState("None");
-            },
-            armarMensajFront: function (mensaje) {
-                var mensajes = [];
-
-                if (mensaje.length) {
-                    for (var i = 0; i < mensaje.length; i++) {
-                        mensajes.push({
-                            "Type": mensaje[i].severity,
-                            "Message": mensaje[i].message,
-                            "Group": mensaje[i].group
-                        });
-                    }
-                }
-                return mensajes;
-            },
-            mostrarMensajes: function (mensajes, thes, callback) {
-
-
-                /*var mensajes = [{
-                    "Type": "E",
-                    "Message": "Mensaje de prueba"
-                }];*/
-
-                for (var i = 0; i < mensajes.length; i++) {
-                    switch (mensajes[i].Type) {
-                        case "E":
-                            mensajes[i].Type = "Error";
-                            break;
-                        case "S":
-                            mensajes[i].Type = "Success";
-                            break;
-                        case "W":
-                            mensajes[i].Type = "Warning";
-                            break;
-                        case "I":
-                            mensajes[i].Type = "Information";
-                            break;
-                        case "error":
-                            mensajes[i].Type = "Error";
-                            break;
-                        case "success":
-                            mensajes[i].Type = "Success";
-                            break;
-                        case "warning":
-                            mensajes[i].Type = "Warning";
-                            break;
-                        case "info":
-                            mensajes[i].Type = "Information";
-                            break;
-                    }
-                }
-
-                var oMessageTemplate = new sap.m.MessageItem({
-                    type: '{Type}',
-                    title: '{Message}',
-                    groupName: '{Group}'
-                });
-
-                var oModel = new sap.ui.model.json.JSONModel(mensajes);
-
-                var oBackButton = new sap.m.Button({
-                    icon: sap.ui.core.IconPool.getIconURI("nav-back"),
-                    visible: false,
-                    press: function () {
-                        thes.oMessageView.navigateBack();
-                        this.setVisible(false);
-                    }
-                });
-
-                this.oMessageView = new sap.m.MessageView({
-                    showDetailsPageHeader: false,
-                    itemSelect: function () {
-                        oBackButton.setVisible(true);
-                    },
-                    items: {
-                        path: "/",
-                        template: oMessageTemplate
-                    },
-                    groupItems: true
-                });
-
-                this.oMessageView.setModel(oModel);
-
-                this.oDialog = new sap.m.Dialog({
-                    resizable: true,
-                    content: this.oMessageView,
-                    beginButton: new sap.m.Button({
-                        press: function (oEvent) {
-                            sap.ui.getCore().byId(oEvent.getSource().getParent().getId()).close();
-                        },
-                        text: "Close"
-                    }),
-                    customHeader: new sap.m.Bar({
-                        contentMiddle: [
-                            new sap.m.Text({
-                                text: "Mensajes"
-                            })
-                        ],
-                        contentLeft: [oBackButton]
-                    }),
-                    contentHeight: "50%",
-                    contentWidth: "50%",
-                    verticalScrolling: false
-                });
-                if (callback) {
-                    this.oDialog.setBeginButton(new sap.m.Button({
-                        text: this.oResourceBundle.getText("continuar"),
-                        press: callback.bind(this)
-                    }))
-                }
-
-                this.oMessageView.navigateBack();
-                this.oDialog.open();
-            },
-            // INI RJVS 04/03/2026 Carga de datos desde excel tableNaturaleza
-            onDownloadExcelNaturaleza: function () {
-                // Se obtiene la tabla
-                var oTable = this.byId("tableNaturaleza");
-                // Se obtiene el binding de sus filas
-                var oBinding = oTable.getBinding("rows");
-                // Se obtiene los contexto de cada fila
-                var aContexts = oBinding.getContexts();
-                //Se comprueba si tamaño del array de contextos es distinto a 0
-                if (!aContexts.length) {
-                    sap.m.MessageToast.show("No hay datos para exportar");
-                    return;
-                }
-                //Recorriendo los contextos para obtener los datos
-                var aData = aContexts.map(function (oContext) {
-                    return oContext.getObject();
-                });
-                // Array de columnas
-                var aColumns = [];
-                // Recorremos las columnas
-                oTable.getColumns().forEach(function (oColumn) {
-                    //Se obtiene el label
-                    var oLabel = oColumn.getLabel();
-                    // En caso que exista el label, se trae su texto, si no vacío
-                    var sLabel = oLabel ? oLabel.getText() : "";
-                    //Como se agrega el valor por sort o filter, identificamos la propiedad
-                    var sProperty = oColumn.getSortProperty() || oColumn.getFilterProperty() || "";
-                    //Se hace un if para setear 
-                    if (!sProperty) {
-                        return;
-                    }
-                    //if para determinar si el tipo es Date o String
-                    if (sProperty === "DateHigh" || sProperty === "DateLow" || sProperty === "ExecutionDate") {
-                        aColumns.push({
-                            label: sLabel,
-                            property: sProperty,
-                            type: sap.ui.export.EdmType.Date
-                        });
-                    } else {
-                        aColumns.push({
-                            label: sLabel,
-                            property: sProperty,
-                            type: sap.ui.export.EdmType.String
-                        });
-                    }
-                });
-                //Recorriendo los contextos para obtener los datos
-                var aFormattedData = aData.map(function (oItem) {
-                    // Array de columna
-                    var oRow = {};
-                    // Recorremos las columnas
-                    aColumns.forEach(function (oCol) {
-                        //Creando variable para llegar a ExecutionHourdesde array
-                        var vValue = oItem[oCol.property];
-                        //Buscar la columna que apunta a ExecutionHour
-                        if (oCol.property === "ExecutionHour") {
-                            //Creando condición para comprobar si hay un objecto o si es indefinido
-                            if (vValue && typeof vValue === "object" && vValue.ms !== undefined) {
-
-                                var totalSeconds = Math.floor(vValue.ms / 1000);
-                                //caluclo para obtener horas, minutos y segundos
-                                var h = Math.floor(totalSeconds / 3600);
-                                var m = Math.floor((totalSeconds % 3600) / 60);
-                                var s = totalSeconds % 60;
-
-                                vValue =
-                                    h.toString().padStart(2, "0") + ":" +
-                                    m.toString().padStart(2, "0") + ":" +
-                                    s.toString().padStart(2, "0");
-                            }
-                        }
-                        // si es vacio me devuelve el campo vacio 
-                        if (vValue === null || vValue === undefined) {
-                            vValue = "";
-                        }
-
-                        oRow[oCol.property] = vValue;
-                    });
-
-                    return oRow;
-
-                });
-                // Se crea la configuracion del excel
-                var oSettings = {
-                    workbook: {
-                        columns: aColumns
-                    },
-                    dataSource: aFormattedData,
-                    fileName: this.oResourceBundle.getText("nombreExcel") + ".xlsx",
-                    worker: false
-                };
-                //Se genera un excel
-                var oSheet = new sap.ui.export.Spreadsheet(oSettings);
-                //Se descarga el excel
-                oSheet.build().finally(function () {
-                    oSheet.destroy();
-                });
-
-            },
-            // INI RJVS 05/03/6 Upload datos excel tableNaturaleza
-            //Creando una condición para obtener las fechas con el formato correcto 
-            excelDateToJSDate: function (serial) {
-                var utc_days = Math.floor(serial - 25569);
-                var utc_value = utc_days * 86400;
-                var date_info = new Date(utc_value * 1000);
-
-                return new Date(
-                    date_info.getFullYear(),
-                    date_info.getMonth(),
-                    date_info.getDate()
-                );
-            },
-            oFileUploadNaturaleza: function (oEvent) {
-                //Se lee el fichero
-                var oFile = oEvent.getParameter("files")[0];
-                if (!oFile) return;
-                //Funcion base para leer archivo
-                var reader = new FileReader();
-                reader.onload = function (e) {
-                    var data = new Uint8Array(e.target.result);
-                    var workbook = XLSX.read(data, { type: "array" });
-                    var sheet = workbook.Sheets[workbook.SheetNames[0]];
-                    var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
-                    var aData = [];
-                    //Se crea variable para obtener el modelo 
-                    var oModel = this.getView().getModel("mapfresa");
-                    // Se comrpueba si existe y si no es nuevo
-                    for (var i = 0; i < rows.length; i++) {
-                        //Se obiente la propriedad 
-                        var naturaleza = oModel.getProperty("/naturaleza");
-                        //Creando variable para obtener la propriedad
-                        var item = naturaleza[i];
-                        var row = rows[i];
-                        //si la fila no está vacia, procesa
-                        if (row.length !== 0) {
-                            //Comprovar si el elemento existe en el modelo 
-                            if (item) {
-                                //si no existe Id se asigna el valor de ClassId
-                                if (!item.Id) {
-
-                                    item.ClassId = row[0].toString() || "";
-                                }
-                                //Se asignan valor de los datos
-                                item.SaknrLow = row[1] ? row[1].toString() : "";
-                                this.getView().getModel().setProperty(item._pathSmarfield + "/SaknrLow", row[1] ? row[1].toString() : "");
-                                item.SaknrHigh = row[2] ? row[2].toString() : "";
-                                this.getView().getModel().setProperty(item._pathSmarfield + "/SaknrHigh", row[2] ? row[2].toString() : "");
-                                //Le pasamos la función para el formato correcto de las fechas para Javascript desde Excel
-                                item.DateLow = this.excelDateToJSDate(row[3]) || null;
-                                item.DateHigh = this.excelDateToJSDate(row[4]) || null;
-                            } else {
-                                //Si no existe se crea entrada para el oData
-                                var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
-                                    properties: {
-                                        Zsociedad: '0004',
-                                        SaknrLow: row[1] ? row[1].toString() : "",
-                                        SaknrHigh: row[2] ? row[2].toString() : "",
-                                    }
-                                })
-                                //se crea objecto local con el path contexto del oData
-                                item = {
-                                    _pathSmarfield: oContextNat.getPath()
-                                };
-                                debugger;
-                                //Se asignan los datos desde Excel
-                                item.ClassId = row[0] ? row[0].toString() : "";
-                                item.SaknrLow = row[1] ? row[1].toString() : "",
-                                item.SaknrHigh = row[2] ? row[2].toString() : "";
-                                item.DateLow = this.excelDateToJSDate(row[3]) || null;
-                                item.DateHigh = this.excelDateToJSDate(row[4]) || null;
-                                // Se agrega el nuevo elemento en el array
-                                naturaleza.push(item);
-                                item._numerico = naturaleza.length;
-                            }
-                        }
-                    }
-                    //Las propriedades se asignan en el modelo
-                    oModel.setProperty("/naturaleza", naturaleza);
-                    //Se actualiza el modelo
-                    oModel.refresh(true);
-                    //Se muestra un mensaje de carga correcta de los datos
-                    sap.m.MessageToast.show("Excel cargado correctamente");
-                    //Se bindea para reflejar datos en tabla
-                }.bind(this);
-
-                reader.readAsArrayBuffer(oFile);
-            },
-            // FIN RJVS 06/03/2026 Upload datos excel tableNaturaleza
-            // INI RJVS 09/03/2026 Dowload datos excel tableCeco
-            onDowloadExcelCeco: function () {
-                var oTable = this.byId("tableCeco");
-                // Se obtiene el binding de sus filas
-                var oBinding = oTable.getBinding("rows");
-                // Se obtiene los contexto de cada fila
-                var aContexts = oBinding.getContexts();
-                //Se comprueba si tamaño del array de contextos es distinto a 0
-                if (!aContexts.length) {
-                    sap.m.MessageToast.show("No hay datos para exportar");
-                    return;
-                }
-                //Recorriendo los contextos para obtener los datos
-                var aData = aContexts.map(function (oContext) {
-                    return oContext.getObject();
-                });
-                // Array de columnas
-                var aColumns = [];
-                // Recorremos las columnas
-                oTable.getColumns().forEach(function (oColumn) {
-                    //Se obtiene el label
-                    var oLabel = oColumn.getLabel();
-                    // En caso que exista el label, se trae su texto, si no vacío
-                    var sLabel = oLabel ? oLabel.getText() : "";
-                    //Como se agrega el valor por sort o filter, identificamos la propiedad
-                    var sProperty = oColumn.getSortProperty() || oColumn.getFilterProperty() || "";
-                    //Se hace un if para setear 
-                    if (!sProperty) {
-                        return;
-                    }
-                    //if para determinar si el tipo es Date o String
-                    if (sProperty === "DateHigh" || sProperty === "DateLow" || sProperty === "ExecutionDate") {
-                        aColumns.push({
-                            label: sLabel,
-                            property: sProperty,
-                            type: sap.ui.export.EdmType.Date
-                        });
-                    } else {
-                        aColumns.push({
-                            label: sLabel,
-                            property: sProperty,
-                            type: sap.ui.export.EdmType.String
-                        });
-                    }
-                });
-                //Recorriendo los contextos para obtener los datos
-                var aFormattedData = aData.map(function (oItem) {
-                    // Array de columna
-                    var oRow = {};
-                    // Recorremos las columnas
-                    aColumns.forEach(function (oCol) {
-                        //Creando variable para llegar a ExecutionHourdesde array
-                        var vValue = oItem[oCol.property];
-                        //Buscar la columna que apunta a ExecutionHour
-                        if (oCol.property === "ExecutionHour") {
-                            //Creando condición para comprobar si hay un objecto o si es indefinido
-                            if (vValue && typeof vValue === "object" && vValue.ms !== undefined) {
-
-                                var totalSeconds = Math.floor(vValue.ms / 1000);
-                                //caluclo para obtener horas, minutos y segundos
-                                var h = Math.floor(totalSeconds / 3600);
-                                var m = Math.floor((totalSeconds % 3600) / 60);
-                                var s = totalSeconds % 60;
-
-                                vValue =
-                                    h.toString().padStart(2, "0") + ":" +
-                                    m.toString().padStart(2, "0") + ":" +
-                                    s.toString().padStart(2, "0");
-                            }
-                        }
-                        // si es vacio me devuelve el campo vacio 
-                        if (vValue === null || vValue === undefined) {
-                            vValue = "";
-                        }
-
-                        oRow[oCol.property] = vValue;
-                    });
-
-                    return oRow;
-
-                });
-                // Se crea la configuracion del excel
-                var oSettings = {
-                    workbook: {
-                        columns: aColumns
-                    },
-                    dataSource: aFormattedData,
-                    fileName: this.oResourceBundle.getText("nombreExcelCeco") + ".xlsx",
-                    worker: false
-                };
-                //Se genera un excel
-                var oSheet = new sap.ui.export.Spreadsheet(oSettings);
-                //Se descarga el excel
-                oSheet.build().finally(function () {
-                    oSheet.destroy();
-                });
-
-            },
-            oFileUploadCeco: function (oEvent) {
-                //Se lee el fichero
-                var oFile = oEvent.getParameter("files")[0];
-                if (!oFile) return;
-                //Funcion base para leer archivo
-                var reader = new FileReader();
-                reader.onload = function (e) {
-                    var data = new Uint8Array(e.target.result);
-                    var workbook = XLSX.read(data, { type: "array" });
-                    var sheet = workbook.Sheets[workbook.SheetNames[0]];
-                    var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
-                    var aData = [];
-                    //Se crea variable para obtener el modelo 
-                    var oModel = this.getView().getModel("mapfresa");
-                    // Se comrpueba si existe y si no es nuevo
-                    for (var i = 0; i < rows.length; i++) {
-                        //Se obiente la propriedad 
-                        var ceco = oModel.getProperty("/ceco");
-                        //Creando variable para obtener la propriedad
-                        var item = ceco[i];
-                        var row = rows[i];
-                        //si la fila no está vacia, procesa
-                        if (row.length !== 0) {
-                            //Comprovar si el elemento existe en el modelo 
-                            if (item) {
-
-                                //Se asignan valor de los datos
-                                item.CostCenter = row[0] ? row[0].toString() : "";
-                                this.getView().getModel().setProperty(item._pathSmarfield + "/CostCenter", row[0] ? row[0].toString() : "");
-                                item.Dedication = row[1] ? row[1].toString() : "";
-                                item.TypeId = row[2] ? row[2].toString() : "";
-                                //Le pasamos la función para el formato correcto de las fechas para Javascript desde Excel
-                                item.DateLow = this.excelDateToJSDate(row[3]) || null;
-                                item.DateHigh = this.excelDateToJSDate(row[4]) || null;
-                            } else {
-                                //Si no existe se crea entrada para el oData
-                                var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_CECO", {
-                                    properties: {
-                                        Zsociedad: '0004',
-                                        CostCenter: row[0] ? row[0].toString() : "",
-                                    }
-                                })
-                                //se crea objecto local con el path contexto del oData
-                                item = {
-                                    _pathSmarfield: oContextNat.getPath()
-                                };
-                                debugger;
-                                //Se asignan los datos desde Excel
-                                item.CostCenter = row[0] ? row[0].toString() : "",
-                                    item.Dedication = row[1] ? row[1].toString() : "";
-                                item.TypeId = row[2] ? row[2].toString() : "",
-                                    item.DateLow = this.excelDateToJSDate(row[3]) || null;
-                                item.DateHigh = this.excelDateToJSDate(row[4]) || null;
-                                // Se agrega el nuevo elemento en el array
-                                ceco.push(item);
-                                item._numerico = ceco.length;
-                            }
-                        }
-                    }
-                    //Las propriedades se asignan en el modelo
-                    oModel.setProperty("/ceco", ceco);
-                    //Se actualiza el modelo
-                    oModel.refresh(true);
-                    //Se muestra un mensaje de carga correcta de los datos
-                    sap.m.MessageToast.show("Excel cargado correctamente");
-                    //Se bindea para reflejar datos en tabla
-                }.bind(this);
-
-                reader.readAsArrayBuffer(oFile);
-            },
-            // FIN RJVS 09/03/2026 Dowload datos excel tableCeco
-            // INI RJVS 10/04/2026 Dowload y Upload datos excel
-            onDowloadExcelTipoCeco: function () {
-                var oTable = this.byId("tableTipoCeco");
-                var oBinding = oTable.getBinding("rows");
-                var aContexts = oBinding.getContexts();
-
-                if (!aContexts.length) {
-                    sap.m.MessageToast.show("No hay datos para exportar");
-                    return;
-                }
-
-                var aData = aContexts.map(function (oContext) {
-                    return oContext.getObject();
-                });
-
-                var aColumns = [];
-
-                oTable.getColumns().forEach(function (oColumn) {
-                    if (!oColumn.getVisible()) return;
-
-                    var oLabel = oColumn.getLabel();
-                    var sLabel = oLabel ? oLabel.getText() : "";
-                    if (!sLabel) return;
-
-                    var oTemplate = oColumn.getTemplate();
-                    var sProperty = null;
-
-                    if (oTemplate) {
-                        var oBindingInfo = oTemplate.getBindingInfo("value") || oTemplate.getBindingInfo("text");
-                        if (oBindingInfo && oBindingInfo.parts && oBindingInfo.parts.length > 0) {
-                            sProperty = oBindingInfo.parts[0].path;
-                        }
-                    }
-
-                    if (!sProperty) return;
-
-                    if (sProperty === "ExecutionDate") {
-                        aColumns.push({ label: sLabel, property: sProperty, type: sap.ui.export.EdmType.Date });
-                    } else {
-                        aColumns.push({ label: sLabel, property: sProperty, type: sap.ui.export.EdmType.String });
-                    }
-                });
-
-                if (!aColumns.length) {
-                    sap.m.MessageToast.show("No hay columnas para exportar");
-                    return;
-                }
-
-                var aFormattedData = aData.map(function (oItem) {
-                    var oRow = {};
-                    aColumns.forEach(function (oCol) {
-                        var vValue = oItem[oCol.property];
-
-                        if (oCol.property === "ExecutionHour") {
-                            if (vValue && typeof vValue === "object" && vValue.ms !== undefined) {
-                                var totalSeconds = Math.floor(vValue.ms / 1000);
-                                var h = Math.floor(totalSeconds / 3600);
-                                var m = Math.floor((totalSeconds % 3600) / 60);
-                                var s = totalSeconds % 60;
-                                vValue = h.toString().padStart(2, "0") + ":" +
-                                    m.toString().padStart(2, "0") + ":" +
-                                    s.toString().padStart(2, "0");
-                            }
-                        }
-
-                        if (vValue === null || vValue === undefined) {
-                            vValue = "";
-                        }
-
-                        oRow[oCol.property] = vValue;
-                    });
-                    return oRow;
-                });
-
-                var oSettings = {
-                    workbook: { columns: aColumns },
-                    dataSource: aFormattedData,
-                    fileName: this.oResourceBundle.getText("nombreExcelTipopCeco") + ".xlsx",
-                    worker: false
-                };
-
-                var oSheet = new sap.ui.export.Spreadsheet(oSettings);
-                oSheet.build().finally(function () {
-                    oSheet.destroy();
-                });
-            },
-            oFileUploadTipoeco: function (oEvent) {
-                var oFile = oEvent.getParameter("files")[0];
-                if (!oFile) return;
-
-                var reader = new FileReader();
-                reader.onload = function (e) {
-                    var data = new Uint8Array(e.target.result);
-                    var workbook = XLSX.read(data, { type: "array" });
-                    var sheet = workbook.Sheets[workbook.SheetNames[0]];
-                    var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
-
-                    var oModel = this.getView().getModel("mapfresa");
-                    var tipoCeco = oModel.getProperty("/tipoCeco");
-
-                    for (var i = 0; i < rows.length; i++) {
-                        var row = rows[i];
-
-                        if (!row || row.length === 0) continue;
-
-                        var sOrden = row[0] ? row[0].toString() : "";
-                        var sDescription = row[1] ? row[1].toString() : "";
-                        var sDescriptionEng = row[2] ? row[2].toString() : "";
-
-                        var oExisting = tipoCeco.find(function (t) {
-                            return t.Orden === sOrden;
-                        });
-
-                        if (oExisting) {
-                            oExisting.Orden = sOrden;
-                            oExisting.Description = sDescription;
-                            oExisting.DescriptionEng = sDescriptionEng;
-                        } else {
-                            var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
-                                properties: {
-                                    Zsociedad: '0004'
-                                }
-                            });
-
-                            var item = {
-                                _pathSmarfield: oContextNat.getPath(),
-                                Orden: sOrden,
-                                Description: sDescription,
-                                DescriptionEng: sDescriptionEng
-                            };
-
-                            tipoCeco.push(item);
-                            item._numerico = tipoCeco.length;
-                        }
-                    }
-
-                    oModel.setProperty("/tipoCeco", tipoCeco);
-                    oModel.refresh(true);
-                    sap.m.MessageToast.show("Excel cargado correctamente");
-
-                }.bind(this);
-
-                reader.readAsArrayBuffer(oFile);
-            },
-            onDownloadExcelTipoNat: function () {
-                var oTable = this.byId("tableTipoNat");
-                var oBinding = oTable.getBinding("rows");
-                var aContexts = oBinding.getContexts();
-
-                if (!aContexts.length) {
-                    sap.m.MessageToast.show("No hay datos para exportar");
-                    return;
-                }
-
-                var aData = aContexts.map(function (oContext) {
-                    return oContext.getObject();
-                });
-
-                var aColumns = [];
-
-                oTable.getColumns().forEach(function (oColumn) {
-                    if (!oColumn.getVisible()) return;
-
-                    var oLabel = oColumn.getLabel();
-                    var sLabel = oLabel ? oLabel.getText() : "";
-                    if (!sLabel) return;
-
-                    var oTemplate = oColumn.getTemplate();
-                    var sProperty = null;
-
-                    if (oTemplate) {
-                        var oBindingInfo = oTemplate.getBindingInfo("value") || oTemplate.getBindingInfo("text");
-                        if (oBindingInfo && oBindingInfo.parts && oBindingInfo.parts.length > 0) {
-                            sProperty = oBindingInfo.parts[0].path;
-                        }
-                    }
-
-                    if (!sProperty) return;
-
-                    if (sProperty === "ExecutionDate") {
-                        aColumns.push({ label: sLabel, property: sProperty, type: sap.ui.export.EdmType.Date });
-                    } else {
-                        aColumns.push({ label: sLabel, property: sProperty, type: sap.ui.export.EdmType.String });
-                    }
-                });
-
-                if (!aColumns.length) {
-                    sap.m.MessageToast.show("No hay columnas para exportar");
-                    return;
-                }
-
-                var aFormattedData = aData.map(function (oItem) {
-                    var oRow = {};
-                    aColumns.forEach(function (oCol) {
-                        var vValue = oItem[oCol.property];
-
-                        if (oCol.property === "ExecutionHour") {
-                            if (vValue && typeof vValue === "object" && vValue.ms !== undefined) {
-                                var totalSeconds = Math.floor(vValue.ms / 1000);
-                                var h = Math.floor(totalSeconds / 3600);
-                                var m = Math.floor((totalSeconds % 3600) / 60);
-                                var s = totalSeconds % 60;
-                                vValue = h.toString().padStart(2, "0") + ":" +
-                                    m.toString().padStart(2, "0") + ":" +
-                                    s.toString().padStart(2, "0");
-                            }
-                        }
-
-                        if (vValue === null || vValue === undefined) {
-                            vValue = "";
-                        }
-
-                        oRow[oCol.property] = vValue;
-                    });
-                    return oRow;
-                });
-
-                var oSettings = {
-                    workbook: { columns: aColumns },
-                    dataSource: aFormattedData,
-                    fileName: this.oResourceBundle.getText("nombreExcelTipoNat") + ".xlsx",
-                    worker: false
-                };
-
-                var oSheet = new sap.ui.export.Spreadsheet(oSettings);
-                oSheet.build().finally(function () {
-                    oSheet.destroy();
-                });
-
-            },
-            oFileUploadTipoNat: function (oEvent) {
-                var oFile = oEvent.getParameter("files")[0];
-                if (!oFile) return;
-
-                var reader = new FileReader();
-                reader.onload = function (e) {
-                    var data = new Uint8Array(e.target.result);
-                    var workbook = XLSX.read(data, { type: "array" });
-                    var sheet = workbook.Sheets[workbook.SheetNames[0]];
-                    var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
-
-                    var oModel = this.getView().getModel("mapfresa");
-                    var tipoNat = oModel.getProperty("/tipoNat");
-
-                    for (var i = 0; i < rows.length; i++) {
-                        var row = rows[i];
-
-                        if (!row || row.length === 0) continue;
-
-                        var sOrden = row[0] ? row[0].toString() : "";
-                        var sDescription = row[1] ? row[1].toString() : "";
-                        var sDescriptionEng = row[2] ? row[2].toString() : "";
-
-                        var oExisting = tipoNat.find(function (t) {
-                            return t.Orden === sOrden;
-                        });
-
-                        if (oExisting) {
-                            oExisting.Orden = sOrden;
-                            oExisting.Description = sDescription;
-                            oExisting.DescriptionEng = sDescriptionEng;
-                        } else {
-                            var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
-                                properties: {
-                                    Zsociedad: '0004'
-                                }
-                            });
-
-                            var item = {
-                                _pathSmarfield: oContextNat.getPath(),
-                                Orden: sOrden,
-                                Description: sDescription,
-                                DescriptionEng: sDescriptionEng
-                            };
-
-                            tipoNat.push(item);
-                            item._numerico = tipoNat.length;
-                        }
-                    }
-
-                    oModel.setProperty("/tipoNat", tipoNat);
-                    oModel.refresh(true);
-                    sap.m.MessageToast.show("Excel cargado correctamente");
-
-                }.bind(this);
-
-                reader.readAsArrayBuffer(oFile);
-
-            },
-            onDownloadExcelMarkup: function () {
-                var oTable = this.byId("tableMarkup");
-                var oBinding = oTable.getBinding("rows");
-                var aContexts = oBinding.getContexts();
-
-                if (!aContexts.length) {
-                    sap.m.MessageToast.show("No hay datos para exportar");
-                    return;
-                }
-
-                var aData = aContexts.map(function (oContext) {
-                    return oContext.getObject();
-                });
-
-                var aColumns = [];
-
-                oTable.getColumns().forEach(function (oColumn) {
-                    if (!oColumn.getVisible()) return;
-
-                    var oLabel = oColumn.getLabel();
-                    var sLabel = oLabel ? oLabel.getText() : "";
-                    if (!sLabel) return;
-
-                    var oTemplate = oColumn.getTemplate();
-                    var sProperty = null;
-
-                    if (oTemplate) {
-                        var oBindingInfo = oTemplate.getBindingInfo("dateValue") ||
-                            oTemplate.getBindingInfo("value") ||
-                            oTemplate.getBindingInfo("text");
-
-                        if (oBindingInfo && oBindingInfo.parts && oBindingInfo.parts.length > 0) {
-                            sProperty = oBindingInfo.parts[0].path;
-                        }
-                    }
-
-                    if (!sProperty) return;
-
-                    if (sProperty === "DateHigh" || sProperty === "DateLow" || sProperty === "ExecutionDate") {
-                        aColumns.push({ label: sLabel, property: sProperty, type: sap.ui.export.EdmType.Date });
-                    } else {
-                        aColumns.push({ label: sLabel, property: sProperty, type: sap.ui.export.EdmType.String });
-                    }
-                });
-
-                if (!aColumns.length) {
-                    sap.m.MessageToast.show("No hay columnas para exportar");
-                    return;
-                }
-
-                var aFormattedData = aData.map(function (oItem) {
-                    var oRow = {};
-                    aColumns.forEach(function (oCol) {
-                        var vValue = oItem[oCol.property];
-
-                        if (oCol.property === "ExecutionHour") {
-                            if (vValue && typeof vValue === "object" && vValue.ms !== undefined) {
-                                var totalSeconds = Math.floor(vValue.ms / 1000);
-                                var h = Math.floor(totalSeconds / 3600);
-                                var m = Math.floor((totalSeconds % 3600) / 60);
-                                var s = totalSeconds % 60;
-                                vValue = h.toString().padStart(2, "0") + ":" +
-                                    m.toString().padStart(2, "0") + ":" +
-                                    s.toString().padStart(2, "0");
-                            }
-                        }
-
-                        if (vValue === null || vValue === undefined) {
-                            vValue = "";
-                        }
-
-                        oRow[oCol.property] = vValue;
-                    });
-                    return oRow;
-                });
-
-                var oSettings = {
-                    workbook: { columns: aColumns },
-                    dataSource: aFormattedData,
-                    fileName: this.oResourceBundle.getText("nombreExcelMarkup") + ".xlsx",
-                    worker: false
-                };
-
-                var oSheet = new sap.ui.export.Spreadsheet(oSettings);
-                oSheet.build().finally(function () {
-                    oSheet.destroy();
-                });
-            },
-            oFileUploadMarkup: function (oEvent) {
-                var oFile = oEvent.getParameter("files")[0];
-                if (!oFile) return;
-                //Funcion base para leer archivo
-                var reader = new FileReader();
-                reader.onload = function (e) {
-                    var data = new Uint8Array(e.target.result);
-                    var workbook = XLSX.read(data, { type: "array" });
-                    var sheet = workbook.Sheets[workbook.SheetNames[0]];
-                    var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
-                    var aData = [];
-                    //Se crea variable para obtener el modelo 
-                    var oModel = this.getView().getModel("mapfresa");
-                    // Se comrpueba si existe y si no es nuevo
-                    for (var i = 0; i < rows.length; i++) {
-                        //Se obiente la propriedad 
-                        var markup = oModel.getProperty("/markup");
-                        //Creando variable para obtener la propriedad
-                        var item = markup[i];
-                        var row = rows[i];
-                        //si la fila no está vacia, procesa
-                        if (row.length !== 0) {
-                            //Comprovar si el elemento existe en el modelo 
-                            if (item) {
-                                //si no existe Id se asigna el valor de ClassId
-                                if (!item.Id) {
-
-                                    item.Markup = row[0].toString() || "";
-                                }
-                                //Le pasamos la función para el formato correcto de las fechas para Javascript desde Excel
-                                item.DateLow = this.excelDateToJSDate(row[1]) || null;
-                                item.DateHigh = this.excelDateToJSDate(row[2]) || null;
-                            } else {
-                                //Si no existe se crea entrada para el oData
-                                var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
-                                    properties: {
-                                        Zsociedad: '0004'
-                                    }
-                                })
-                                //se crea objecto local con el path contexto del oData
-                                item = {
-                                    _pathSmarfield: oContextNat.getPath()
-                                };
-                                debugger;
-                                //Se asignan los datos desde Excel
-                                item.Markup = row[0] ? row[0].toString() : "";
-                                item.DateLow = this.excelDateToJSDate(row[1]) || null;
-                                item.DateHigh = this.excelDateToJSDate(row[2]) || null;
-                                // Se agrega el nuevo elemento en el array
-                                markup.push(item);
-                                item._numerico = markup.length;
-                            }
-                        }
-                    }
-                    //Las propriedades se asignan en el modelo
-                    oModel.setProperty("/markup", markup);
-                    //Se actualiza el modelo
-                    oModel.refresh(true);
-                    //Se muestra un mensaje de carga correcta de los datos
-                    sap.m.MessageToast.show("Excel cargado correctamente");
-                    //Se bindea para reflejar datos en tabla
-                }.bind(this);
-
-                reader.readAsArrayBuffer(oFile);
-
+                //Se agrega el nuevo elemento en el array
+                tipoNat.push(item);
             }
-             // FIN RJVS 13/04/2026 Dowload y Upload datos excel
-        });
-    });
+        }
+
+        //Se renumera la columna del contador
+        for (var n = 0; n < tipoNat.length; n++) {
+            tipoNat[n]._numerico = n + 1;
+        }
+
+        //Las propriedades se asignan en el modelo
+        oModel.setProperty("/tipoNat", tipoNat);
+        //Se actualiza el modelo
+        oModel.refresh(true);
+        //Se limpia el uploader para poder subir el mismo fichero otra vez
+        oUploader.clear();
+        //Se muestra un mensaje de carga correcta de los datos
+        sap.m.MessageToast.show("Excel cargado correctamente");
+    }.bind(this);
+
+    reader.
+readAsArrayBuffer(oFile);
+},oFileUploadNaturaleza: function (oEvent) {
+    //Se lee el fichero
+    var oUploader = oEvent.getSource();
+    var oFile = oEvent.getParameter("files")[0];
+    if (!oFile) return;
+    //Funcion base para leer archivo
+    var reader = new FileReader();
+    reader.onload = function (e) {
+        var data = new Uint8Array(e.target.result);
+        var workbook = XLSX.read(data, { type: "array" });
+        var sheet = workbook.Sheets[workbook.SheetNames[0]];
+        var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
+        //Se crea variable para obtener el modelo
+        var oModel = this.getView().getModel("mapfresa");
+        var naturaleza = oModel.getProperty("/naturaleza");
+        var tipoNat = oModel.getProperty("/tipoNat");
+
+        for (var i = 0; i < rows.length; i++) {
+            var row = rows[i];
+            //si la fila esta vacia, se salta
+            if (!row || row.length === 0) continue;
+
+            //Se leen los datos de la fila
+            var sClassId = row[0] ? row[0].toString().trim() : "";
+            var sSaknrLow = row[1] ? row[1].toString().trim() : "";
+            var sSaknrHigh = row[2] ? row[2].toString().trim() : "";
+            var dDateLow = this.excelDateToJSDate(row[3]);
+            var dDateHigh = this.excelDateToJSDate(row[4]);
+
+            //Sin cuenta de no se puede identificar la fila, se ignora
+            if (!sSaknrLow) continue;
+
+            //Se busca la fila por clave de negocio, NO por posicion
+            var item = null;
+            for (var j = 0; j < naturaleza.length; j++) {
+                var iLowMod = naturaleza[j].DateLow ? new Date(naturaleza[j].DateLow).getTime() : 0;
+                var iHighMod = naturaleza[j].DateHigh ? new Date(naturaleza[j].DateHigh).getTime() : 0;
+                var iLowExcel = dDateLow ? dDateLow.getTime() : 0;
+                var iHighExcel = dDateHigh ? dDateHigh.getTime() : 0;
+
+                if ((naturaleza[j].SaknrLow + "") === sSaknrLow &&
+                    ((naturaleza[j].SaknrHigh || "") + "") === sSaknrHigh &&
+                    iLowMod === iLowExcel &&
+                    iHighMod === iHighExcel) {
+                    item = naturaleza[j];
+                    break;
+                }
+            }
+
+            if (item) {
+                //Ya existe: solo se actualiza la naturaleza, no se tocan cuentas ni fechas
+                item.ClassId = sClassId;
+            } else {
+                //Si no existe se crea entrada para el oData
+                var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
+                    properties: {
+                        Zsociedad: '0004',
+                        SaknrLow: sSaknrLow,
+                        SaknrHigh: sSaknrHigh
+                    }
+                });
+                //se crea objecto local con el path contexto del oData
+                item = {
+                    _pathSmarfield: oContextNat.getPath()
+                };
+                //Se asignan los datos desde Excel
+                item.ClassId = sClassId;
+                item.SaknrLow = sSaknrLow;
+                item.SaknrHigh = sSaknrHigh;
+                item.DateLow = dDateLow;
+                item.DateHigh = dDateHigh;
+                //Se agrega el nuevo elemento en el array
+                naturaleza.push(item);
+            }
+
+            //Se rellena Class y ClassOrder igual que hace onChangeClass
+            if (item.ClassId) {
+                for (var k = 0; k < tipoNat.length; k++) {
+                    if (tipoNat[k].Id + "" === item.ClassId + "") {
+                        item.Class = this.aux.getProperty("/currentL") === 'es-ES'
+                            ? tipoNat[k].Description
+                            : tipoNat[k].DescriptionEng;
+                        item.ClassOrder = tipoNat[k].Orden;
+                        break;
+                    }
+                }
+            }
+        }
+
+        //Se renumera la columna del contador
+        for (var n = 0; n < naturaleza.length; n++) {
+            naturaleza[n]._numerico = n + 1;
+        }
+
+        //Las propriedades se asignan en el modelo
+        oModel.setProperty("/naturaleza", naturaleza);
+        //Se actualiza el modelo
+        oModel.refresh(true);
+        //Se limpia el uploader para poder subir el mismo fichero otra vez
+        oUploader.clear();
+        //Se muestra un mensaje de carga correcta de los datos
+        sap.m.MessageToast.show("Excel cargado correctamente");
+    }.bind(this);
+
+    reader.readAsArrayBuffer(oFile);
+},oFileUploadMarkup: function (oEvent) {
+    //Se lee el fichero
+    var oUploader = oEvent.getSource();
+    var oFile = oEvent.getParameter("files")[0];
+    if (!oFile) return;
+    //Funcion base para leer archivo
+    var reader = new FileReader();
+    reader.onload = function (e) {
+        var data = new Uint8Array(e.target.result);
+        var workbook = XLSX.read(data, { type: "array" });
+        var sheet = workbook.Sheets[workbook.SheetNames[0]];
+        var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
+        //Se crea variable para obtener el modelo
+        var oModel = this.getView().getModel("mapfresa");
+        var markup = oModel.getProperty("/markup");
+
+        for (var i = 0; i < rows.length; i++) {
+            var row = rows[i];
+            //si la fila esta vacia, se salta
+            if (!row || row.length === 0) continue;
+
+            //Se leen los datos de la fila
+            var sMarkup = row[0] ? row[0].toString().replace("%", "").replace(",", ".").trim() : "";
+            var dDateLow = this.excelDateToJSDate(row[1]);
+            var dDateHigh = this.excelDateToJSDate(row[2]);
+
+            //Sin rango de fechas no se puede identificar la fila, se ignora
+            if (!dDateLow || !dDateHigh) continue;
+
+            //Se busca la fila por rango de fechas, NO por posicion
+            var item = null;
+            for (var j = 0; j < markup.length; j++) {
+                var iLowMod = markup[j].DateLow ? new Date(markup[j].DateLow).getTime() : 0;
+                var iHighMod = markup[j].DateHigh ? new Date(markup[j].DateHigh).getTime() : 0;
+
+                if (iLowMod === dDateLow.getTime() && iHighMod === dDateHigh.getTime()) {
+                    item = markup[j];
+                    break;
+                }
+            }
+
+            if (item) {
+                //Ya existe: se actualiza el porcentaje aunque la fila este guardada
+                item.Markup = parseFloat(sMarkup) || 0;
+            } else {
+                //Fila nueva, igual que la que crea onAddRowMarkup
+                item = {
+                    Markup: parseFloat(sMarkup) || 0,
+                    DateLow: dDateLow,
+                    DateHigh: dDateHigh
+                };
+                //Se agrega el nuevo elemento en el array
+                markup.push(item);
+            }
+        }
+
+        //Se renumera la columna del contador
+        for (var n = 0; n < markup.length; n++) {
+            markup[n]._numerico = n + 1;
+        }
+
+        //Las propriedades se asignan en el modelo
+        oModel.setProperty("/markup", markup);
+        //Se actualiza el modelo
+        oModel.refresh(true);
+        //Se limpia el uploader para poder subir el mismo fichero otra vez
+        oUploader.clear();
+        //Se muestra un mensaje de carga correcta de los datos
+        sap.m.MessageToast.show("Excel cargado correctamente");
+    }.bind(this);
+
+    reader.readAsArrayBuffer(oFile);
+},
