@@ -1,20 +1,9 @@
-excelDateToJSDate: function (serial) {
-    //Si viene vacio o no es numero, se devuelve null
-    if (serial === null || serial === undefined || serial === "" || isNaN(serial)) {
-        return null;
-    }
-    var utc_days = Math.floor(serial - 25569);
-    var utc_value = utc_days * 86400;
-    var date_info = new Date(utc_value * 1000);
-
-    var fecha = new Date(
-        date_info.getUTCFullYear(),
-        date_info.getUTCMonth(),
-        date_info.getUTCDate()
-    );
-    //Se compensa la zona horaria igual que hace onChangeDate
-    return new Date(fecha.getTime() - (fecha.getTimezoneOffset() * 60 * 1000));
-},
+//Se anade la columna Id al principio para poder identificar las filas al cargar
+aColumns.unshift({
+    label: "Id",
+    property: "Id",
+    type: sap.ui.export.EdmType.String
+});
 oFileUploadCeco: function (oEvent) {
     //Se lee el fichero
     var oUploader = oEvent.getSource();
@@ -27,7 +16,7 @@ oFileUploadCeco: function (oEvent) {
         var workbook = XLSX.read(data, { type: "array" });
         var sheet = workbook.Sheets[workbook.SheetNames[0]];
         var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
-        //Se crea variable para obtener el modelo 
+        //Se crea variable para obtener el modelo
         var oModel = this.getView().getModel("mapfresa");
         var ceco = oModel.getProperty("/ceco");
         var tipoCeco = oModel.getProperty("/tipoCeco");
@@ -38,36 +27,32 @@ oFileUploadCeco: function (oEvent) {
             if (!row || row.length === 0) continue;
 
             //Se leen los datos de la fila
-            var sCostCenter = row[0] ? row[0].toString().trim() : "";
-            var sDedication = row[1] ? row[1].toString().replace("%", "").replace(",", ".").trim() : "";
-            var sTypeId = row[2] ? row[2].toString().trim() : "";
-            var dDateLow = this.excelDateToJSDate(row[3]);
-            var dDateHigh = this.excelDateToJSDate(row[4]);
-
-            //Sin ceco no se puede identificar la fila, se ignora
-            if (!sCostCenter) continue;
-
-            //Se busca la fila por clave de negocio, NO por posicion
+            var sId = row[0] ? row[0].toString().trim() : "";
+            var sCostCenter = row[1] ? row[1].toString().trim() : "";
+            var sDedication = row[2] ? row[2].toString().replace("%", "").replace(",", ".").trim() : "";
+            var sTypeId = row[3] ? row[3].toString().trim() : "";
+            var dDateLow = this.excelDateToJSDate(row[4]);
+            var dDateHigh = this.excelDateToJSDate(row[5]);
             var item = null;
-            for (var j = 0; j < ceco.length; j++) {
-                var iLowMod = ceco[j].DateLow ? new Date(ceco[j].DateLow).getTime() : 0;
-                var iHighMod = ceco[j].DateHigh ? new Date(ceco[j].DateHigh).getTime() : 0;
-                var iLowExcel = dDateLow ? dDateLow.getTime() : 0;
-                var iHighExcel = dDateHigh ? dDateHigh.getTime() : 0;
 
-                if (ceco[j].CostCenter === sCostCenter &&
-                    iLowMod === iLowExcel &&
-                    iHighMod === iHighExcel) {
-                    item = ceco[j];
-                    break;
+            if (sId) {
+                //La fila ya existe: se busca por Id
+                for (var j = 0; j < ceco.length; j++) {
+                    if ((ceco[j].Id + "") === sId) {
+                        item = ceco[j];
+                        break;
+                    }
                 }
-            }
-
-            if (item) {
-                //Ya existe: solo se actualiza lo editable, no se toca ceco ni fechas
+                //Si el Id no esta en la tabla se ignora la fila
+                if (!item) continue;
+                //Solo se modifica lo que es editable en pantalla.
+                //CostCenter y TypeId no lo son cuando hay Id, asi que no se tocan.
                 item.Dedication = parseFloat(sDedication) || 0;
-                item.TypeId = sTypeId;
+                item.DateLow = dDateLow;
+                item.DateHigh = dDateHigh;
             } else {
+                //Fila nueva: sin ceco no se puede dar de alta
+                if (!sCostCenter) continue;
                 //Si no existe se crea entrada para el oData
                 var oContextCeco = this.getView().getModel().createEntry("/ZCMSD_FACT_CECO", {
                     properties: {
@@ -77,27 +62,26 @@ oFileUploadCeco: function (oEvent) {
                 });
                 //se crea objecto local con el path contexto del oData
                 item = {
-                    _pathSmarfield: oContextCeco.getPath()
+                    _pathSmarfield: oContextCeco.getPath(),
+                    CostCenter: sCostCenter,
+                    Dedication: parseFloat(sDedication) || 0,
+                    TypeId: sTypeId,
+                    DateLow: dDateLow,
+                    DateHigh: dDateHigh
                 };
-                //Se asignan los datos desde Excel
-                item.CostCenter = sCostCenter;
-                item.Dedication = parseFloat(sDedication) || 0;
-                item.TypeId = sTypeId;
-                item.DateLow = dDateLow;
-                item.DateHigh = dDateHigh;
                 // Se agrega el nuevo elemento en el array
                 ceco.push(item);
-            }
 
-            //Se rellena Type y TypeOrder igual que hace onChangeTipo
-            if (item.TypeId) {
-                for (var k = 0; k < tipoCeco.length; k++) {
-                    if (tipoCeco[k].Id + "" === item.TypeId + "") {
-                        item.Type = this.aux.getProperty("/currentL") === 'es-ES'
-                            ? tipoCeco[k].Description
-                            : tipoCeco[k].DescriptionEng;
-                        item.TypeOrder = tipoCeco[k].Orden;
-                        break;
+                //Se rellena Type y TypeOrder igual que hace onChangeTipo
+                if (item.TypeId) {
+                    for (var k = 0; k < tipoCeco.length; k++) {
+                        if ((tipoCeco[k].Id + "") === (item.TypeId + "")) {
+                            item.Type = this.aux.getProperty("/currentL") === 'es-ES'
+                                ? tipoCeco[k].Description
+                                : tipoCeco[k].DescriptionEng;
+                            item.TypeOrder = tipoCeco[k].Orden;
+                            break;
+                        }
                     }
                 }
             }
@@ -112,9 +96,109 @@ oFileUploadCeco: function (oEvent) {
         oModel.setProperty("/ceco", ceco);
         //Se actualiza el modelo
         oModel.refresh(true);
-        //Se limpia el uploader para poder subir el mismo fichero otra vez
         oUploader.clear();
-        //Se muestra un mensaje de carga correcta de los datos
+        sap.m.MessageToast.show("Excel cargado correctamente");
+    }.bind(this);
+
+    reader.readAsArrayBuffer(oFile);
+},
+oFileUploadNaturaleza: function (oEvent) {
+    //Se lee el fichero
+    var oUploader = oEvent.getSource();
+    var oFile = oEvent.getParameter("files")[0];
+    if (!oFile) return;
+    //Funcion base para leer archivo
+    var reader = new FileReader();
+    reader.onload = function (e) {
+        var data = new Uint8Array(e.target.result);
+        var workbook = XLSX.read(data, { type: "array" });
+        var sheet = workbook.Sheets[workbook.SheetNames[0]];
+        var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
+        //Se crea variable para obtener el modelo
+        var oModel = this.getView().getModel("mapfresa");
+        var naturaleza = oModel.getProperty("/naturaleza");
+        var tipoNat = oModel.getProperty("/tipoNat");
+
+        for (var i = 0; i < rows.length; i++) {
+            var row = rows[i];
+            //si la fila esta vacia, se salta
+            if (!row || row.length === 0) continue;
+
+            //Se leen los datos de la fila
+            var sId = row[0] ? row[0].toString().trim() : "";
+            var sClassId = row[1] ? row[1].toString().trim() : "";
+            var sSaknrLow = row[2] ? row[2].toString().trim() : "";
+            var sSaknrHigh = row[3] ? row[3].toString().trim() : "";
+            var dDateLow = this.excelDateToJSDate(row[4]);
+            var dDateHigh = this.excelDateToJSDate(row[5]);
+            var item = null;
+
+            if (sId) {
+                //La fila ya existe: se busca por Id
+                for (var j = 0; j < naturaleza.length; j++) {
+                    if ((naturaleza[j].Id + "") === sId) {
+                        item = naturaleza[j];
+                        break;
+                    }
+                }
+                //Si el Id no esta en la tabla se ignora la fila
+                if (!item) continue;
+                //ClassId no es editable cuando hay Id, no se toca.
+                //Las cuentas y las fechas si lo son
+                item.SaknrLow = sSaknrLow;
+                this.getView().getModel().setProperty(item._pathSmarfield + "/SaknrLow", sSaknrLow);
+                item.SaknrHigh = sSaknrHigh;
+                this.getView().getModel().setProperty(item._pathSmarfield + "/SaknrHigh", sSaknrHigh);
+                item.DateLow = dDateLow;
+                item.DateHigh = dDateHigh;
+            } else {
+                //Fila nueva: sin cuenta de no se puede dar de alta
+                if (!sSaknrLow) continue;
+                //Si no existe se crea entrada para el oData
+                var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
+                    properties: {
+                        Zsociedad: '0004',
+                        SaknrLow: sSaknrLow,
+                        SaknrHigh: sSaknrHigh
+                    }
+                });
+                //se crea objecto local con el path contexto del oData
+                item = {
+                    _pathSmarfield: oContextNat.getPath(),
+                    ClassId: sClassId,
+                    SaknrLow: sSaknrLow,
+                    SaknrHigh: sSaknrHigh,
+                    DateLow: dDateLow,
+                    DateHigh: dDateHigh
+                };
+                // Se agrega el nuevo elemento en el array
+                naturaleza.push(item);
+
+                //Se rellena Class y ClassOrder igual que hace onChangeClass
+                if (item.ClassId) {
+                    for (var k = 0; k < tipoNat.length; k++) {
+                        if ((tipoNat[k].Id + "") === (item.ClassId + "")) {
+                            item.Class = this.aux.getProperty("/currentL") === 'es-ES'
+                                ? tipoNat[k].Description
+                                : tipoNat[k].DescriptionEng;
+                            item.ClassOrder = tipoNat[k].Orden;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        //Se renumera la columna del contador
+        for (var n = 0; n < naturaleza.length; n++) {
+            naturaleza[n]._numerico = n + 1;
+        }
+
+        //Las propriedades se asignan en el modelo
+        oModel.setProperty("/naturaleza", naturaleza);
+        //Se actualiza el modelo
+        oModel.refresh(true);
+        oUploader.clear();
         sap.m.MessageToast.show("Excel cargado correctamente");
     }.bind(this);
 
@@ -142,30 +226,32 @@ oFileUploadTipoeco: function (oEvent) {
             if (!row || row.length === 0) continue;
 
             //Se leen los datos de la fila
-            var sOrden = row[0] ? row[0].toString().trim() : "";
-            var sDescription = row[1] ? row[1].toString() : "";
-            var sDescriptionEng = row[2] ? row[2].toString() : "";
-
-            //Sin orden no se puede identificar la fila, se ignora
-            if (!sOrden) continue;
-
-            //Se busca por Orden forzando la comparacion a texto
+            var sId = row[0] ? row[0].toString().trim() : "";
+            var sOrden = row[1] ? row[1].toString().trim() : "";
+            var sDescription = row[2] ? row[2].toString() : "";
+            var sDescriptionEng = row[3] ? row[3].toString() : "";
             var item = null;
-            for (var j = 0; j < tipoCeco.length; j++) {
-                if ((tipoCeco[j].Orden + "") === sOrden) {
-                    item = tipoCeco[j];
-                    break;
-                }
-            }
 
-            if (item) {
-                //Solo se actualizan las tipologias propias, igual que el editable de la vista
+            if (sId) {
+                //La fila ya existe: se busca por Id
+                for (var j = 0; j < tipoCeco.length; j++) {
+                    if ((tipoCeco[j].Id + "") === sId) {
+                        item = tipoCeco[j];
+                        break;
+                    }
+                }
+                //Si el Id no esta en la tabla se ignora la fila
+                if (!item) continue;
+                //El orden siempre es editable
+                item.Orden = sOrden;
+                //Las descripciones solo en las tipologias propias (Id que empieza por 9)
                 if ((item.Id + "").indexOf("9") === 0) {
                     item.Description = sDescription;
                     item.DescriptionEng = sDescriptionEng;
                 }
             } else {
                 //Fila nueva: se asigna el Id igual que hace onAddRowTCeco
+                if (!sOrden && !sDescription) continue;
                 item = {
                     Id: this.lastIdTCeco + "",
                     Deleted: '',
@@ -174,7 +260,7 @@ oFileUploadTipoeco: function (oEvent) {
                     DescriptionEng: sDescriptionEng
                 };
                 this.lastIdTCeco = this.lastIdTCeco + 1;
-                //Se agrega el nuevo elemento en el array
+                // Se agrega el nuevo elemento en el array
                 tipoCeco.push(item);
             }
         }
@@ -188,9 +274,7 @@ oFileUploadTipoeco: function (oEvent) {
         oModel.setProperty("/tipoCeco", tipoCeco);
         //Se actualiza el modelo
         oModel.refresh(true);
-        //Se limpia el uploader para poder subir el mismo fichero otra vez
         oUploader.clear();
-        //Se muestra un mensaje de carga correcta de los datos
         sap.m.MessageToast.show("Excel cargado correctamente");
     }.bind(this);
 
@@ -218,30 +302,32 @@ oFileUploadTipoNat: function (oEvent) {
             if (!row || row.length === 0) continue;
 
             //Se leen los datos de la fila
-            var sOrden = row[0] ? row[0].toString().trim() : "";
-            var sDescription = row[1] ? row[1].toString() : "";
-            var sDescriptionEng = row[2] ? row[2].toString() : "";
-
-            //Sin orden no se puede identificar la fila, se ignora
-            if (!sOrden) continue;
-
-            //Se busca por Orden forzando la comparacion a texto
+            var sId = row[0] ? row[0].toString().trim() : "";
+            var sOrden = row[1] ? row[1].toString().trim() : "";
+            var sDescription = row[2] ? row[2].toString() : "";
+            var sDescriptionEng = row[3] ? row[3].toString() : "";
             var item = null;
-            for (var j = 0; j < tipoNat.length; j++) {
-                if ((tipoNat[j].Orden + "") === sOrden) {
-                    item = tipoNat[j];
-                    break;
-                }
-            }
 
-            if (item) {
-                //Solo se actualizan las tipologias propias, igual que el editable de la vista
+            if (sId) {
+                //La fila ya existe: se busca por Id
+                for (var j = 0; j < tipoNat.length; j++) {
+                    if ((tipoNat[j].Id + "") === sId) {
+                        item = tipoNat[j];
+                        break;
+                    }
+                }
+                //Si el Id no esta en la tabla se ignora la fila
+                if (!item) continue;
+                //El orden siempre es editable
+                item.Orden = sOrden;
+                //Las descripciones solo en las tipologias propias (Id que empieza por 9)
                 if ((item.Id + "").indexOf("9") === 0) {
                     item.Description = sDescription;
                     item.DescriptionEng = sDescriptionEng;
                 }
             } else {
                 //Fila nueva: se asigna el Id igual que hace onAddRowTNat
+                if (!sOrden && !sDescription) continue;
                 item = {
                     Id: this.lastIdTNat + "",
                     Orden: sOrden,
@@ -249,7 +335,7 @@ oFileUploadTipoNat: function (oEvent) {
                     DescriptionEng: sDescriptionEng
                 };
                 this.lastIdTNat = this.lastIdTNat + 1;
-                //Se agrega el nuevo elemento en el array
+                // Se agrega el nuevo elemento en el array
                 tipoNat.push(item);
             }
         }
@@ -263,120 +349,13 @@ oFileUploadTipoNat: function (oEvent) {
         oModel.setProperty("/tipoNat", tipoNat);
         //Se actualiza el modelo
         oModel.refresh(true);
-        //Se limpia el uploader para poder subir el mismo fichero otra vez
         oUploader.clear();
-        //Se muestra un mensaje de carga correcta de los datos
-        sap.m.MessageToast.show("Excel cargado correctamente");
-    }.bind(this);
-
-    reader.
-readAsArrayBuffer(oFile);
-},oFileUploadNaturaleza: function (oEvent) {
-    //Se lee el fichero
-    var oUploader = oEvent.getSource();
-    var oFile = oEvent.getParameter("files")[0];
-    if (!oFile) return;
-    //Funcion base para leer archivo
-    var reader = new FileReader();
-    reader.onload = function (e) {
-        var data = new Uint8Array(e.target.result);
-        var workbook = XLSX.read(data, { type: "array" });
-        var sheet = workbook.Sheets[workbook.SheetNames[0]];
-        var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
-        //Se crea variable para obtener el modelo
-        var oModel = this.getView().getModel("mapfresa");
-        var naturaleza = oModel.getProperty("/naturaleza");
-        var tipoNat = oModel.getProperty("/tipoNat");
-
-        for (var i = 0; i < rows.length; i++) {
-            var row = rows[i];
-            //si la fila esta vacia, se salta
-            if (!row || row.length === 0) continue;
-
-            //Se leen los datos de la fila
-            var sClassId = row[0] ? row[0].toString().trim() : "";
-            var sSaknrLow = row[1] ? row[1].toString().trim() : "";
-            var sSaknrHigh = row[2] ? row[2].toString().trim() : "";
-            var dDateLow = this.excelDateToJSDate(row[3]);
-            var dDateHigh = this.excelDateToJSDate(row[4]);
-
-            //Sin cuenta de no se puede identificar la fila, se ignora
-            if (!sSaknrLow) continue;
-
-            //Se busca la fila por clave de negocio, NO por posicion
-            var item = null;
-            for (var j = 0; j < naturaleza.length; j++) {
-                var iLowMod = naturaleza[j].DateLow ? new Date(naturaleza[j].DateLow).getTime() : 0;
-                var iHighMod = naturaleza[j].DateHigh ? new Date(naturaleza[j].DateHigh).getTime() : 0;
-                var iLowExcel = dDateLow ? dDateLow.getTime() : 0;
-                var iHighExcel = dDateHigh ? dDateHigh.getTime() : 0;
-
-                if ((naturaleza[j].SaknrLow + "") === sSaknrLow &&
-                    ((naturaleza[j].SaknrHigh || "") + "") === sSaknrHigh &&
-                    iLowMod === iLowExcel &&
-                    iHighMod === iHighExcel) {
-                    item = naturaleza[j];
-                    break;
-                }
-            }
-
-            if (item) {
-                //Ya existe: solo se actualiza la naturaleza, no se tocan cuentas ni fechas
-                item.ClassId = sClassId;
-            } else {
-                //Si no existe se crea entrada para el oData
-                var oContextNat = this.getView().getModel().createEntry("/ZCMSD_FACT_FEES", {
-                    properties: {
-                        Zsociedad: '0004',
-                        SaknrLow: sSaknrLow,
-                        SaknrHigh: sSaknrHigh
-                    }
-                });
-                //se crea objecto local con el path contexto del oData
-                item = {
-                    _pathSmarfield: oContextNat.getPath()
-                };
-                //Se asignan los datos desde Excel
-                item.ClassId = sClassId;
-                item.SaknrLow = sSaknrLow;
-                item.SaknrHigh = sSaknrHigh;
-                item.DateLow = dDateLow;
-                item.DateHigh = dDateHigh;
-                //Se agrega el nuevo elemento en el array
-                naturaleza.push(item);
-            }
-
-            //Se rellena Class y ClassOrder igual que hace onChangeClass
-            if (item.ClassId) {
-                for (var k = 0; k < tipoNat.length; k++) {
-                    if (tipoNat[k].Id + "" === item.ClassId + "") {
-                        item.Class = this.aux.getProperty("/currentL") === 'es-ES'
-                            ? tipoNat[k].Description
-                            : tipoNat[k].DescriptionEng;
-                        item.ClassOrder = tipoNat[k].Orden;
-                        break;
-                    }
-                }
-            }
-        }
-
-        //Se renumera la columna del contador
-        for (var n = 0; n < naturaleza.length; n++) {
-            naturaleza[n]._numerico = n + 1;
-        }
-
-        //Las propriedades se asignan en el modelo
-        oModel.setProperty("/naturaleza", naturaleza);
-        //Se actualiza el modelo
-        oModel.refresh(true);
-        //Se limpia el uploader para poder subir el mismo fichero otra vez
-        oUploader.clear();
-        //Se muestra un mensaje de carga correcta de los datos
         sap.m.MessageToast.show("Excel cargado correctamente");
     }.bind(this);
 
     reader.readAsArrayBuffer(oFile);
-},oFileUploadMarkup: function (oEvent) {
+},
+oFileUploadMarkup: function (oEvent) {
     //Se lee el fichero
     var oUploader = oEvent.getSource();
     var oFile = oEvent.getParameter("files")[0];
@@ -398,36 +377,35 @@ readAsArrayBuffer(oFile);
             if (!row || row.length === 0) continue;
 
             //Se leen los datos de la fila
-            var sMarkup = row[0] ? row[0].toString().replace("%", "").replace(",", ".").trim() : "";
-            var dDateLow = this.excelDateToJSDate(row[1]);
-            var dDateHigh = this.excelDateToJSDate(row[2]);
-
-            //Sin rango de fechas no se puede identificar la fila, se ignora
-            if (!dDateLow || !dDateHigh) continue;
-
-            //Se busca la fila por rango de fechas, NO por posicion
+            var sId = row[0] ? row[0].toString().trim() : "";
+            var sMarkup = row[1] ? row[1].toString().replace("%", "").replace(",", ".").trim() : "";
+            var dDateLow = this.excelDateToJSDate(row[2]);
+            var dDateHigh = this.excelDateToJSDate(row[3]);
             var item = null;
-            for (var j = 0; j < markup.length; j++) {
-                var iLowMod = markup[j].DateLow ? new Date(markup[j].DateLow).getTime() : 0;
-                var iHighMod = markup[j].DateHigh ? new Date(markup[j].DateHigh).getTime() : 0;
 
-                if (iLowMod === dDateLow.getTime() && iHighMod === dDateHigh.getTime()) {
-                    item = markup[j];
-                    break;
+            if (sId) {
+                //La fila ya existe: se busca por Id
+                for (var j = 0; j < markup.length; j++) {
+                    if ((markup[j].Id + "") === sId) {
+                        item = markup[j];
+                        break;
+                    }
                 }
-            }
-
-            if (item) {
-                //Ya existe: se actualiza el porcentaje aunque la fila este guardada
+                //Si el Id no esta en la tabla se ignora la fila
+                if (!item) continue;
+                //En markup todos los campos son editables
                 item.Markup = parseFloat(sMarkup) || 0;
+                item.DateLow = dDateLow;
+                item.DateHigh = dDateHigh;
             } else {
                 //Fila nueva, igual que la que crea onAddRowMarkup
+                if (!sMarkup) continue;
                 item = {
                     Markup: parseFloat(sMarkup) || 0,
                     DateLow: dDateLow,
                     DateHigh: dDateHigh
                 };
-                //Se agrega el nuevo elemento en el array
+                // Se agrega el nuevo elemento en el array
                 markup.push(item);
             }
         }
@@ -441,9 +419,7 @@ readAsArrayBuffer(oFile);
         oModel.setProperty("/markup", markup);
         //Se actualiza el modelo
         oModel.refresh(true);
-        //Se limpia el uploader para poder subir el mismo fichero otra vez
         oUploader.clear();
-        //Se muestra un mensaje de carga correcta de los datos
         sap.m.MessageToast.show("Excel cargado correctamente");
     }.bind(this);
 
