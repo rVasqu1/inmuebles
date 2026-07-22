@@ -1,9 +1,126 @@
-//Se anade la columna Id al principio para poder identificar las filas al cargar
-aColumns.unshift({
-    label: "Id",
-    property: "Id",
-    type: sap.ui.export.EdmType.String
-});
+// INI RJVS 05/03/6 Upload datos excel tableNaturaleza
+//Creando una condición para obtener las fechas con el formato correcto 
+excelDateToJSDate: function (serial) {
+    //Si viene vacio o no es numero, se devuelve null
+    if (serial === null || serial === undefined || serial === "" || isNaN(serial)) {
+        return null;
+    }
+    var utc_days = Math.floor(serial - 25569);
+    var utc_value = utc_days * 86400;
+    var date_info = new Date(utc_value * 1000);
+
+    var fecha = new Date(
+        date_info.getUTCFullYear(),
+        date_info.getUTCMonth(),
+        date_info.getUTCDate()
+    );
+    //Se compensa la zona horaria igual que hace onChangeDate
+    return new Date(fecha.getTime() - (fecha.getTimezoneOffset() * 60 * 1000));
+},
+// INI RJVS 09/03/2026 Dowload datos excel tableCeco
+onDowloadExcelCeco: function () {
+    var oTable = this.byId("tableCeco");
+    // Se obtiene el binding de sus filas
+    var oBinding = oTable.getBinding("rows");
+    // Se obtiene los contexto de cada fila (todas, no solo las cargadas)
+    var aContexts = oBinding.getContexts(0, oBinding.getLength());
+    //Se comprueba si tamaño del array de contextos es distinto a 0
+    if (!aContexts.length) {
+        sap.m.MessageToast.show("No hay datos para exportar");
+        return;
+    }
+    //Recorriendo los contextos para obtener los datos
+    var aData = aContexts.map(function (oContext) {
+        return oContext.getObject();
+    });
+    // Array de columnas
+    var aColumns = [];
+    // Recorremos las columnas
+    oTable.getColumns().forEach(function (oColumn) {
+        //Se obtiene el label
+        var oLabel = oColumn.getLabel();
+        // En caso que exista el label, se trae su texto, si no vacío
+        var sLabel = oLabel ? oLabel.getText() : "";
+        //Como se agrega el valor por sort o filter, identificamos la propiedad
+        var sProperty = oColumn.getSortProperty() || oColumn.getFilterProperty() || "";
+        //Se hace un if para setear 
+        if (!sProperty) {
+            return;
+        }
+        //if para determinar si el tipo es Date o String
+        if (sProperty === "DateHigh" || sProperty === "DateLow" || sProperty === "ExecutionDate") {
+            aColumns.push({
+                label: sLabel,
+                property: sProperty,
+                type: sap.ui.export.EdmType.Date
+            });
+        } else {
+            aColumns.push({
+                label: sLabel,
+                property: sProperty,
+                type: sap.ui.export.EdmType.String
+            });
+        }
+    });
+    //Se anade la columna Id al principio para identificar las filas al cargar
+    aColumns.unshift({
+        label: "Id",
+        property: "Id",
+        type: sap.ui.export.EdmType.String
+    });
+    //Recorriendo los contextos para obtener los datos
+    var aFormattedData = aData.map(function (oItem) {
+        // Array de columna
+        var oRow = {};
+        // Recorremos las columnas
+        aColumns.forEach(function (oCol) {
+            //Creando variable para llegar a ExecutionHourdesde array
+            var vValue = oItem[oCol.property];
+            //Buscar la columna que apunta a ExecutionHour
+            if (oCol.property === "ExecutionHour") {
+                //Creando condición para comprobar si hay un objecto o si es indefinido
+                if (vValue && typeof vValue === "object" && vValue.ms !== undefined) {
+
+                    var totalSeconds = Math.floor(vValue.ms / 1000);
+                    //caluclo para obtener horas, minutos y segundos
+                    var h = Math.floor(totalSeconds / 3600);
+                    var m = Math.floor((totalSeconds % 3600) / 60);
+                    var s = totalSeconds % 60;
+
+                    vValue =
+                        h.toString().padStart(2, "0") + ":" +
+                        m.toString().padStart(2, "0") + ":" +
+                        s.toString().padStart(2, "0");
+                }
+            }
+            // si es vacio me devuelve el campo vacio 
+            if (vValue === null || vValue === undefined) {
+                vValue = "";
+            }
+
+            oRow[oCol.property] = vValue;
+        });
+
+        return oRow;
+
+    });
+    // Se crea la configuracion del excel
+    var oSettings = {
+        workbook: {
+            columns: aColumns
+        },
+        dataSource: aFormattedData,
+        fileName: this.oResourceBundle.getText("nombreExcelCeco") + ".xlsx",
+        worker: false
+    };
+    //Se genera un excel
+    var oSheet = new sap.ui.export.Spreadsheet(oSettings);
+    //Se descarga el excel
+    oSheet.build().finally(function () {
+        oSheet.destroy();
+    });
+
+},
 oFileUploadCeco: function (oEvent) {
     //Se lee el fichero
     var oUploader = oEvent.getSource();
@@ -16,9 +133,10 @@ oFileUploadCeco: function (oEvent) {
         var workbook = XLSX.read(data, { type: "array" });
         var sheet = workbook.Sheets[workbook.SheetNames[0]];
         var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
-        //Se crea variable para obtener el modelo
+        //Se crea variable para obtener el modelo 
         var oModel = this.getView().getModel("mapfresa");
         var ceco = oModel.getProperty("/ceco");
+        var aDeleteCeco = oModel.getProperty("/_deleteCeco");
         var tipoCeco = oModel.getProperty("/tipoCeco");
 
         for (var i = 0; i < rows.length; i++) {
@@ -43,10 +161,23 @@ oFileUploadCeco: function (oEvent) {
                         break;
                     }
                 }
-                //Si el Id no esta en la tabla se ignora la fila
-                if (!item) continue;
-                //Solo se modifica lo que es editable en pantalla.
-                //CostCenter y TypeId no lo son cuando hay Id, asi que no se tocan.
+                //Si no esta en la tabla, se mira si se habia borrado y se recupera
+                if (!item) {
+                    for (var d = 0; d < aDeleteCeco.length; d++) {
+                        if ((aDeleteCeco[d].Id + "") === sId) {
+                            item = aDeleteCeco[d];
+                            //Se saca de borradas y se devuelve a la tabla
+                            aDeleteCeco.splice(d, 1);
+                            ceco.push(item);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (item) {
+                //Fila existente o recuperada: solo se modifica lo editable.
+                //CostCenter y TypeId no lo son cuando hay Id, no se tocan.
                 item.Dedication = parseFloat(sDedication) || 0;
                 item.DateLow = dDateLow;
                 item.DateHigh = dDateHigh;
@@ -96,11 +227,304 @@ oFileUploadCeco: function (oEvent) {
         oModel.setProperty("/ceco", ceco);
         //Se actualiza el modelo
         oModel.refresh(true);
+        //Se limpia el uploader para poder subir el mismo fichero otra vez
         oUploader.clear();
+        //Se muestra un mensaje de carga correcta de los datos
         sap.m.MessageToast.show("Excel cargado correctamente");
     }.bind(this);
 
     reader.readAsArrayBuffer(oFile);
+},
+// FIN RJVS 09/03/2026 Dowload datos excel tableCeco
+// INI RJVS 10/04/2026 Dowload y Upload datos excel
+onDowloadExcelTipoCeco: function () {
+    var oTable = this.byId("tableTipoCeco");
+    var oBinding = oTable.getBinding("rows");
+    var aContexts = oBinding.getContexts(0, oBinding.getLength());
+
+    if (!aContexts.length) {
+        sap.m.MessageToast.show("No hay datos para exportar");
+        return;
+    }
+
+    var aData = aContexts.map(function (oContext) {
+        return oContext.getObject();
+    });
+
+    var aColumns = [];
+
+    oTable.getColumns().forEach(function (oColumn) {
+        if (!oColumn.getVisible()) return;
+
+        var oLabel = oColumn.getLabel();
+        var sLabel = oLabel ? oLabel.getText() : "";
+        if (!sLabel) return;
+
+        var oTemplate = oColumn.getTemplate();
+        var sProperty = null;
+
+        if (oTemplate) {
+            var oBindingInfo = oTemplate.getBindingInfo("value") || oTemplate.getBindingInfo("text");
+            if (oBindingInfo && oBindingInfo.parts && oBindingInfo.parts.length > 0) {
+                sProperty = oBindingInfo.parts[0].path;
+            }
+        }
+
+        if (!sProperty) return;
+
+        if (sProperty === "ExecutionDate") {
+            aColumns.push({ label: sLabel, property: sProperty, type: sap.ui.export.EdmType.Date });
+        } else {
+            aColumns.push({ label: sLabel, property: sProperty, type: sap.ui.export.EdmType.String });
+        }
+    });
+
+    if (!aColumns.length) {
+        sap.m.MessageToast.show("No hay columnas para exportar");
+        return;
+    }
+
+    //Se anade la columna Id al principio para identificar las filas al cargar
+    aColumns.unshift({
+        label: "Id",
+        property: "Id",
+        type: sap.ui.export.EdmType.String
+    });
+
+    var aFormattedData = aData.map(function (oItem) {
+        var oRow = {};
+        aColumns.forEach(function (oCol) {
+            var vValue = oItem[oCol.property];
+
+            if (oCol.property === "ExecutionHour") {
+                if (vValue && typeof vValue === "object" && vValue.ms !== undefined) {
+                    var totalSeconds = Math.floor(vValue.ms / 1000);
+                    var h = Math.floor(totalSeconds / 3600);
+                    var m = Math.floor((totalSeconds % 3600) / 60);
+                    var s = totalSeconds % 60;
+                    vValue = h.toString().padStart(2, "0") + ":" +
+                        m.toString().padStart(2, "0") + ":" +
+                        s.toString().padStart(2, "0");
+                }
+            }
+
+            if (vValue === null || vValue === undefined) {
+                vValue = "";
+            }
+
+            oRow[oCol.property] = vValue;
+        });
+        return oRow;
+    });
+
+    var oSettings = {
+        workbook: { columns: aColumns },
+        dataSource: aFormattedData,
+        fileName: this.oResourceBundle.getText("nombreExcelTipopCeco") + ".xlsx",
+        worker: false
+    };
+
+    var oSheet = new sap.ui.export.Spreadsheet(oSettings);
+    oSheet.build().finally(function () {
+        oSheet.destroy();
+    });
+},
+oFileUploadTipoeco: function (oEvent) {
+    //Se lee el fichero
+    var oUploader = oEvent.getSource();
+    var oFile = oEvent.getParameter("files")[0];
+    if (!oFile) return;
+    //Funcion base para leer archivo
+    var reader = new FileReader();
+    reader.onload = function (e) {
+        var data = new Uint8Array(e.target.result);
+        var workbook = XLSX.read(data, { type: "array" });
+        var sheet = workbook.Sheets[workbook.SheetNames[0]];
+        var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
+        //Se crea variable para obtener el modelo 
+        var oModel = this.getView().getModel("mapfresa");
+        var tipoCeco = oModel.getProperty("/tipoCeco");
+        var aDeleteTCeco = oModel.getProperty("/_deleteTipoCeco");
+
+        for (var i = 0; i < rows.length; i++) {
+            var row = rows[i];
+            //si la fila esta vacia, se salta
+            if (!row || row.length === 0) continue;
+
+            //Se leen los datos de la fila
+            var sId = row[0] ? row[0].toString().trim() : "";
+            var sOrden = row[1] ? row[1].toString().trim() : "";
+            var sDescription = row[2] ? row[2].toString() : "";
+            var sDescriptionEng = row[3] ? row[3].toString() : "";
+            var item = null;
+
+            if (sId) {
+                //La fila ya existe: se busca por Id
+                for (var j = 0; j < tipoCeco.length; j++) {
+                    if ((tipoCeco[j].Id + "") === sId) {
+                        item = tipoCeco[j];
+                        break;
+                    }
+                }
+                //Si no esta en la tabla, se mira si se habia borrado y se recupera
+                if (!item) {
+                    for (var d = 0; d < aDeleteTCeco.length; d++) {
+                        if ((aDeleteTCeco[d].Id + "") === sId) {
+                            item = aDeleteTCeco[d];
+                            //Se saca de borradas y se devuelve a la tabla
+                            aDeleteTCeco.splice(d, 1);
+                            tipoCeco.push(item);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (item) {
+                //El orden siempre es editable
+                item.Orden = sOrden;
+                //Las descripciones solo en las tipologias propias (Id que empieza por 9)
+                if ((item.Id + "").indexOf("9") === 0) {
+                    item.Description = sDescription;
+                    item.DescriptionEng = sDescriptionEng;
+                }
+            } else {
+                //Fila nueva: se asigna el Id igual que hace onAddRowTCeco
+                if (!sOrden && !sDescription) continue;
+                item = {
+                    Id: this.lastIdTCeco + "",
+                    Deleted: '',
+                    Orden: sOrden,
+                    Description: sDescription,
+                    DescriptionEng: sDescriptionEng
+                };
+                this.lastIdTCeco = this.lastIdTCeco + 1;
+                // Se agrega el nuevo elemento en el array
+                tipoCeco.push(item);
+            }
+        }
+
+        //Se renumera la columna del contador
+        for (var n = 0; n < tipoCeco.length; n++) {
+            tipoCeco[n]._numerico = n + 1;
+        }
+
+        //Las propriedades se asignan en el modelo
+        oModel.setProperty("/tipoCeco", tipoCeco);
+        //Se actualiza el modelo
+        oModel.refresh(true);
+        //Se limpia el uploader para poder subir el mismo fichero otra vez
+        oUploader.clear();
+        //Se muestra un mensaje de carga correcta de los datos
+        sap.m.MessageToast.show("Excel cargado correctamente");
+    }.bind(this);
+
+    reader.readAsArrayBuffer(oFile);
+},
+// INI RJVS 04/03/2026 Carga de datos desde excel tableNaturaleza
+onDownloadExcelNaturaleza: function () {
+    // Se obtiene la tabla
+    var oTable = this.byId("tableNaturaleza");
+    // Se obtiene el binding de sus filas
+    var oBinding = oTable.getBinding("rows");
+    // Se obtiene los contexto de cada fila (todas, no solo las cargadas)
+    var aContexts = oBinding.getContexts(0, oBinding.getLength());
+    //Se comprueba si tamaño del array de contextos es distinto a 0
+    if (!aContexts.length) {
+        sap.m.MessageToast.show("No hay datos para exportar");
+        return;
+    }
+    //Recorriendo los contextos para obtener los datos
+    var aData = aContexts.map(function (oContext) {
+        return oContext.getObject();
+    });
+    // Array de columnas
+    var aColumns = [];
+    // Recorremos las columnas
+    oTable.getColumns().forEach(function (oColumn) {
+        //Se obtiene el label
+        var oLabel = oColumn.getLabel();
+        // En caso que exista el label, se trae su texto, si no vacío
+        var sLabel = oLabel ? oLabel.getText() : "";
+        //Como se agrega el valor por sort o filter, identificamos la propiedad
+        var sProperty = oColumn.getSortProperty() || oColumn.getFilterProperty() || "";
+        //Se hace un if para setear 
+        if (!sProperty) {
+            return;
+        }
+        //if para determinar si el tipo es Date o String
+        if (sProperty === "DateHigh" || sProperty === "DateLow" || sProperty === "ExecutionDate") {
+            aColumns.push({
+                label: sLabel,
+                property: sProperty,
+                type: sap.ui.export.EdmType.Date
+            });
+        } else {
+            aColumns.push({
+                label: sLabel,
+                property: sProperty,
+                type: sap.ui.export.EdmType.String
+            });
+        }
+    });
+    //Se anade la columna Id al principio para identificar las filas al cargar
+    aColumns.unshift({
+        label: "Id",
+        property: "Id",
+        type: sap.ui.export.EdmType.String
+    });
+    //Recorriendo los contextos para obtener los datos
+    var aFormattedData = aData.map(function (oItem) {
+        // Array de columna
+        var oRow = {};
+        // Recorremos las columnas
+        aColumns.forEach(function (oCol) {
+            //Creando variable para llegar a ExecutionHourdesde array
+            var vValue = oItem[oCol.property];
+            //Buscar la columna que apunta a ExecutionHour
+            if (oCol.property === "ExecutionHour") {
+                //Creando condición para comprobar si hay un objecto o si es indefinido
+                if (vValue && typeof vValue === "object" && vValue.ms !== undefined) {
+
+                    var totalSeconds = Math.floor(vValue.ms / 1000);
+                    //caluclo para obtener horas, minutos y segundos
+                    var h = Math.floor(totalSeconds / 3600);
+                    var m = Math.floor((totalSeconds % 3600) / 60);
+                    var s = totalSeconds % 60;
+
+                    vValue =
+                        h.toString().padStart(2, "0") + ":" +
+                        m.toString().padStart(2, "0") + ":" +
+                        s.toString().padStart(2, "0");
+                }
+            }
+            // si es vacio me devuelve el campo vacio 
+            if (vValue === null || vValue === undefined) {
+                vValue = "";
+            }
+
+            oRow[oCol.property] = vValue;
+        });
+
+        return oRow;
+
+    });
+    // Se crea la configuracion del excel
+    var oSettings = {
+        workbook: {
+            columns: aColumns
+        },
+        dataSource: aFormattedData,
+        fileName: this.oResourceBundle.getText("nombreExcel") + ".xlsx",
+        worker: false
+    };
+    //Se genera un excel
+    var oSheet = new sap.ui.export.Spreadsheet(oSettings);
+    //Se descarga el excel
+    oSheet.build().finally(function () {
+        oSheet.destroy();
+    });
+
 },
 oFileUploadNaturaleza: function (oEvent) {
     //Se lee el fichero
@@ -114,9 +538,10 @@ oFileUploadNaturaleza: function (oEvent) {
         var workbook = XLSX.read(data, { type: "array" });
         var sheet = workbook.Sheets[workbook.SheetNames[0]];
         var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
-        //Se crea variable para obtener el modelo
+        //Se crea variable para obtener el modelo 
         var oModel = this.getView().getModel("mapfresa");
         var naturaleza = oModel.getProperty("/naturaleza");
+        var aDeleteNat = oModel.getProperty("/_deleteNaturaleza");
         var tipoNat = oModel.getProperty("/tipoNat");
 
         for (var i = 0; i < rows.length; i++) {
@@ -141,8 +566,21 @@ oFileUploadNaturaleza: function (oEvent) {
                         break;
                     }
                 }
-                //Si el Id no esta en la tabla se ignora la fila
-                if (!item) continue;
+                //Si no esta en la tabla, se mira si se habia borrado y se recupera
+                if (!item) {
+                    for (var d = 0; d < aDeleteNat.length; d++) {
+                        if ((aDeleteNat[d].Id + "") === sId) {
+                            item = aDeleteNat[d];
+                            //Se saca de borradas y se devuelve a la tabla
+                            aDeleteNat.splice(d, 1);
+                            naturaleza.push(item);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (item) {
                 //ClassId no es editable cuando hay Id, no se toca.
                 //Las cuentas y las fechas si lo son
                 item.SaknrLow = sSaknrLow;
@@ -198,87 +636,107 @@ oFileUploadNaturaleza: function (oEvent) {
         oModel.setProperty("/naturaleza", naturaleza);
         //Se actualiza el modelo
         oModel.refresh(true);
+        //Se limpia el uploader para poder subir el mismo fichero otra vez
         oUploader.clear();
+        //Se muestra un mensaje de carga correcta de los datos
         sap.m.MessageToast.show("Excel cargado correctamente");
     }.bind(this);
 
     reader.readAsArrayBuffer(oFile);
 },
-oFileUploadTipoeco: function (oEvent) {
-    //Se lee el fichero
-    var oUploader = oEvent.getSource();
-    var oFile = oEvent.getParameter("files")[0];
-    if (!oFile) return;
-    //Funcion base para leer archivo
-    var reader = new FileReader();
-    reader.onload = function (e) {
-        var data = new Uint8Array(e.target.result);
-        var workbook = XLSX.read(data, { type: "array" });
-        var sheet = workbook.Sheets[workbook.SheetNames[0]];
-        var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
-        //Se crea variable para obtener el modelo
-        var oModel = this.getView().getModel("mapfresa");
-        var tipoCeco = oModel.getProperty("/tipoCeco");
+// FIN RJVS 06/03/2026 Upload datos excel tableNaturaleza
+onDownloadExcelTipoNat: function () {
+    var oTable = this.byId("tableTipoNat");
+    var oBinding = oTable.getBinding("rows");
+    var aContexts = oBinding.getContexts(0, oBinding.getLength());
 
-        for (var i = 0; i < rows.length; i++) {
-            var row = rows[i];
-            //si la fila esta vacia, se salta
-            if (!row || row.length === 0) continue;
+    if (!aContexts.length) {
+        sap.m.MessageToast.show("No hay datos para exportar");
+        return;
+    }
 
-            //Se leen los datos de la fila
-            var sId = row[0] ? row[0].toString().trim() : "";
-            var sOrden = row[1] ? row[1].toString().trim() : "";
-            var sDescription = row[2] ? row[2].toString() : "";
-            var sDescriptionEng = row[3] ? row[3].toString() : "";
-            var item = null;
+    var aData = aContexts.map(function (oContext) {
+        return oContext.getObject();
+    });
 
-            if (sId) {
-                //La fila ya existe: se busca por Id
-                for (var j = 0; j < tipoCeco.length; j++) {
-                    if ((tipoCeco[j].Id + "") === sId) {
-                        item = tipoCeco[j];
-                        break;
-                    }
-                }
-                //Si el Id no esta en la tabla se ignora la fila
-                if (!item) continue;
-                //El orden siempre es editable
-                item.Orden = sOrden;
-                //Las descripciones solo en las tipologias propias (Id que empieza por 9)
-                if ((item.Id + "").indexOf("9") === 0) {
-                    item.Description = sDescription;
-                    item.DescriptionEng = sDescriptionEng;
-                }
-            } else {
-                //Fila nueva: se asigna el Id igual que hace onAddRowTCeco
-                if (!sOrden && !sDescription) continue;
-                item = {
-                    Id: this.lastIdTCeco + "",
-                    Deleted: '',
-                    Orden: sOrden,
-                    Description: sDescription,
-                    DescriptionEng: sDescriptionEng
-                };
-                this.lastIdTCeco = this.lastIdTCeco + 1;
-                // Se agrega el nuevo elemento en el array
-                tipoCeco.push(item);
+    var aColumns = [];
+
+    oTable.getColumns().forEach(function (oColumn) {
+        if (!oColumn.getVisible()) return;
+
+        var oLabel = oColumn.getLabel();
+        var sLabel = oLabel ? oLabel.getText() : "";
+        if (!sLabel) return;
+
+        var oTemplate = oColumn.getTemplate();
+        var sProperty = null;
+
+        if (oTemplate) {
+            var oBindingInfo = oTemplate.getBindingInfo("value") || oTemplate.getBindingInfo("text");
+            if (oBindingInfo && oBindingInfo.parts && oBindingInfo.parts.length > 0) {
+                sProperty = oBindingInfo.parts[0].path;
             }
         }
 
-        //Se renumera la columna del contador
-        for (var n = 0; n < tipoCeco.length; n++) {
-            tipoCeco[n]._numerico = n + 1;
+        if (!sProperty) return;
+
+        if (sProperty === "ExecutionDate") {
+            aColumns.push({ label: sLabel, property: sProperty, type: sap.ui.export.EdmType.Date });
+        } else {
+            aColumns.push({ label: sLabel, property: sProperty, type: sap.ui.export.EdmType.String });
         }
+    });
 
-        //Las propriedades se asignan en el modelo
-        oModel.setProperty("/tipoCeco", tipoCeco);
-        //Se actualiza el modelo
-        oModel.refresh(true);
-        oUploader.clear();
-        sap.m.MessageToast.show("Excel cargado correctamente");
-    }.bind(this);
+    if (!aColumns.length) {
+        sap.m.MessageToast.show("No hay columnas para exportar");
+        return;
+    }
 
-    reader.readAsArrayBuffer(oFile);
+    //Se anade la columna Id al principio para identificar las filas al cargar
+    aColumns.unshift({
+        label: "Id",
+        property: "Id",
+        type: sap.ui.export.EdmType.String
+    });
+
+    var aFormattedData = aData.map(function (oItem) {
+        var oRow = {};
+        aColumns.forEach(function (oCol) {
+            var vValue = oItem[oCol.property];
+
+            if (oCol.property === "ExecutionHour") {
+                if (vValue && typeof vValue === "object" && vValue.ms !== undefined) {
+                    var totalSeconds = Math.floor(vValue.ms / 1000);
+                    var h = Math.floor(totalSeconds / 3600);
+                    var m = Math.floor((totalSeconds % 3600) / 60);
+                    var s = totalSeconds % 60;
+                    vValue = h.toString().padStart(2, "0") + ":" +
+                        m.toString().padStart(2, "0") + ":" +
+                        s.toString().padStart(2, "0");
+                }
+            }
+
+            if (vValue === null || vValue === undefined) {
+                vValue = "";
+            }
+
+            oRow[oCol.property] = vValue;
+        });
+        return oRow;
+    });
+
+    var oSettings = {
+        workbook: { columns: aColumns },
+        dataSource: aFormattedData,
+        fileName: this.oResourceBundle.getText("nombreExcelTipoNat") + ".xlsx",
+        worker: false
+    };
+
+    var oSheet = new sap.ui.export.Spreadsheet(oSettings);
+    oSheet.build().finally(function () {
+        oSheet.destroy();
+    });
+
 },
 oFileUploadTipoNat: function (oEvent) {
     //Se lee el fichero
@@ -292,9 +750,10 @@ oFileUploadTipoNat: function (oEvent) {
         var workbook = XLSX.read(data, { type: "array" });
         var sheet = workbook.Sheets[workbook.SheetNames[0]];
         var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
-        //Se crea variable para obtener el modelo
+        //Se crea variable para obtener el modelo 
         var oModel = this.getView().getModel("mapfresa");
         var tipoNat = oModel.getProperty("/tipoNat");
+        var aDeleteTNat = oModel.getProperty("/_deleteTipoNat");
 
         for (var i = 0; i < rows.length; i++) {
             var row = rows[i];
@@ -316,8 +775,21 @@ oFileUploadTipoNat: function (oEvent) {
                         break;
                     }
                 }
-                //Si el Id no esta en la tabla se ignora la fila
-                if (!item) continue;
+                //Si no esta en la tabla, se mira si se habia borrado y se recupera
+                if (!item) {
+                    for (var d = 0; d < aDeleteTNat.length; d++) {
+                        if ((aDeleteTNat[d].Id + "") === sId) {
+                            item = aDeleteTNat[d];
+                            //Se saca de borradas y se devuelve a la tabla
+                            aDeleteTNat.splice(d, 1);
+                            tipoNat.push(item);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (item) {
                 //El orden siempre es editable
                 item.Orden = sOrden;
                 //Las descripciones solo en las tipologias propias (Id que empieza por 9)
@@ -349,11 +821,108 @@ oFileUploadTipoNat: function (oEvent) {
         oModel.setProperty("/tipoNat", tipoNat);
         //Se actualiza el modelo
         oModel.refresh(true);
+        //Se limpia el uploader para poder subir el mismo fichero otra vez
         oUploader.clear();
+        //Se muestra un mensaje de carga correcta de los datos
         sap.m.MessageToast.show("Excel cargado correctamente");
     }.bind(this);
 
     reader.readAsArrayBuffer(oFile);
+},
+onDownloadExcelMarkup: function () {
+    var oTable = this.byId("tableMarkup");
+    var oBinding = oTable.getBinding("rows");
+    var aContexts = oBinding.getContexts(0, oBinding.getLength());
+
+    if (!aContexts.length) {
+        sap.m.MessageToast.show("No hay datos para exportar");
+        return;
+    }
+
+    var aData = aContexts.map(function (oContext) {
+        return oContext.getObject();
+    });
+
+    var aColumns = [];
+
+    oTable.getColumns().forEach(function (oColumn) {
+        if (!oColumn.getVisible()) return;
+
+        var oLabel = oColumn.getLabel();
+        var sLabel = oLabel ? oLabel.getText() : "";
+        if (!sLabel) return;
+
+        var oTemplate = oColumn.getTemplate();
+        var sProperty = null;
+
+        if (oTemplate) {
+            var oBindingInfo = oTemplate.getBindingInfo("dateValue") ||
+                oTemplate.getBindingInfo("value") ||
+                oTemplate.getBindingInfo("text");
+
+            if (oBindingInfo && oBindingInfo.parts && oBindingInfo.parts.length > 0) {
+                sProperty = oBindingInfo.parts[0].path;
+            }
+        }
+
+        if (!sProperty) return;
+
+        if (sProperty === "DateHigh" || sProperty === "DateLow" || sProperty === "ExecutionDate") {
+            aColumns.push({ label: sLabel, property: sProperty, type: sap.ui.export.EdmType.Date });
+        } else {
+            aColumns.push({ label: sLabel, property: sProperty, type: sap.ui.export.EdmType.String });
+        }
+    });
+
+    if (!aColumns.length) {
+        sap.m.MessageToast.show("No hay columnas para exportar");
+        return;
+    }
+
+    //Se anade la columna Id al principio para identificar las filas al cargar
+    aColumns.unshift({
+        label: "Id",
+        property: "Id",
+        type: sap.ui.export.EdmType.String
+    });
+
+    var aFormattedData = aData.map(function (oItem) {
+        var oRow = {};
+        aColumns.forEach(function (oCol) {
+            var vValue = oItem[oCol.property];
+
+            if (oCol.property === "ExecutionHour") {
+                if (vValue && typeof vValue === "object" && vValue.ms !== undefined) {
+                    var totalSeconds = Math.floor(vValue.ms / 1000);
+                    var h = Math.floor(totalSeconds / 3600);
+                    var m = Math.floor((totalSeconds % 3600) / 60);
+                    var s = totalSeconds % 60;
+                    vValue = h.toString().padStart(2, "0") + ":" +
+                        m.toString().padStart(2, "0") + ":" +
+                        s.toString().padStart(2, "0");
+                }
+            }
+
+            if (vValue === null || vValue === undefined) {
+                vValue = "";
+            }
+
+            oRow[oCol.property] = vValue;
+        });
+        return oRow;
+    });
+
+    var oSettings = {
+        workbook: { columns: aColumns },
+        dataSource: aFormattedData,
+        fileName: this.oResourceBundle.getText("nombreExcelMarkup") + ".xlsx",
+        worker: false
+    };
+
+    var oSheet = new sap.ui.export.Spreadsheet(oSettings);
+    oSheet.build().finally(function () {
+        oSheet.destroy();
+    });
 },
 oFileUploadMarkup: function (oEvent) {
     //Se lee el fichero
@@ -367,9 +936,10 @@ oFileUploadMarkup: function (oEvent) {
         var workbook = XLSX.read(data, { type: "array" });
         var sheet = workbook.Sheets[workbook.SheetNames[0]];
         var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
-        //Se crea variable para obtener el modelo
+        //Se crea variable para obtener el modelo 
         var oModel = this.getView().getModel("mapfresa");
         var markup = oModel.getProperty("/markup");
+        var aDeleteMarkup = oModel.getProperty("/_deleteMarkup");
 
         for (var i = 0; i < rows.length; i++) {
             var row = rows[i];
@@ -391,8 +961,21 @@ oFileUploadMarkup: function (oEvent) {
                         break;
                     }
                 }
-                //Si el Id no esta en la tabla se ignora la fila
-                if (!item) continue;
+                //Si no esta en la tabla, se mira si se habia borrado y se recupera
+                if (!item) {
+                    for (var d = 0; d < aDeleteMarkup.length; d++) {
+                        if ((aDeleteMarkup[d].Id + "") === sId) {
+                            item = aDeleteMarkup[d];
+                            //Se saca de borradas y se devuelve a la tabla
+                            aDeleteMarkup.splice(d, 1);
+                            markup.push(item);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (item) {
                 //En markup todos los campos son editables
                 item.Markup = parseFloat(sMarkup) || 0;
                 item.DateLow = dDateLow;
@@ -419,9 +1002,12 @@ oFileUploadMarkup: function (oEvent) {
         oModel.setProperty("/markup", markup);
         //Se actualiza el modelo
         oModel.refresh(true);
+        //Se limpia el uploader para poder subir el mismo fichero otra vez
         oUploader.clear();
+        //Se muestra un mensaje de carga correcta de los datos
         sap.m.MessageToast.show("Excel cargado correctamente");
     }.bind(this);
 
     reader.readAsArrayBuffer(oFile);
-},
+}
+// FIN RJVS 13/04/2026 Dowload y Upload datos excel
